@@ -1993,6 +1993,44 @@ def download_canvas_submissions(course_id, assignment_id):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/courses/<course_id>/assignments/<assignment_id>/submissions/<user_id>/excuse', methods=['POST'])
+def excuse_submission(course_id, assignment_id, user_id):
+    """Mark a submission as excused in Canvas (won't affect grade calculations)"""
+    url = f"{CANVAS_URL}/api/v1/courses/{course_id}/assignments/{assignment_id}/submissions/{user_id}"
+
+    data = {
+        "submission": {"excuse": True}
+    }
+
+    try:
+        response = requests.put(url, headers=get_headers(), json=data)
+        if response.status_code == 200:
+            return jsonify({"success": True, "message": "Submission excused"})
+        else:
+            return jsonify({"error": f"Canvas API error: {response.status_code}", "details": response.text}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/courses/<course_id>/assignments/<assignment_id>/submissions/<user_id>/mark-missing', methods=['POST'])
+def mark_submission_missing(course_id, assignment_id, user_id):
+    """Mark a submission as missing in Canvas (useful for wrong file uploads)"""
+    url = f"{CANVAS_URL}/api/v1/courses/{course_id}/assignments/{assignment_id}/submissions/{user_id}"
+
+    data = {
+        "submission": {"late_policy_status": "missing"}
+    }
+
+    try:
+        response = requests.put(url, headers=get_headers(), json=data)
+        if response.status_code == 200:
+            return jsonify({"success": True, "message": "Submission marked as missing"})
+        else:
+            return jsonify({"error": f"Canvas API error: {response.status_code}", "details": response.text}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/courses/<course_id>/assignments/<assignment_id>')
 def api_assignment_detail(course_id, assignment_id):
     """Get assignment details"""

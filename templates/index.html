@@ -249,6 +249,21 @@
                                 <div class="flex items-center gap-3">
                                     <button onclick="gradeCurrentStudent()" class="btn-primary text-white px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-medium">🤖 Grade This</button>
                                     <button onclick="runCurrentCode()" class="btn-success text-white px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-medium">▶️ Run</button>
+                                    <button onclick="skipCurrentSubmission()" class="px-3 py-2 text-gray-400 hover:text-yellow-400 glass-card rounded-lg text-sm" title="Skip - remove from current batch">⏭️</button>
+                                    <div class="relative group">
+                                        <button class="px-3 py-2 text-gray-400 hover:text-white glass-card rounded-lg">⚠️</button>
+                                        <div class="absolute right-0 top-full mt-2 w-64 bg-gray-900/95 backdrop-blur border border-white/10 rounded-xl overflow-hidden hidden group-hover:block z-10">
+                                            <p class="px-4 py-2 text-xs font-semibold text-gray-400 border-b border-white/5">Wrong File Actions</p>
+                                            <button onclick="markSubmissionMissing()" class="w-full px-4 py-3 text-left text-sm hover:bg-white/10 flex items-center gap-2">
+                                                <span>📭</span> Mark as Missing
+                                                <span class="text-xs text-gray-500 ml-auto">in Canvas</span>
+                                            </button>
+                                            <button onclick="excuseSubmission()" class="w-full px-4 py-3 text-left text-sm hover:bg-white/10 flex items-center gap-2 border-t border-white/5">
+                                                <span>✖️</span> Excuse Submission
+                                                <span class="text-xs text-gray-500 ml-auto">no grade impact</span>
+                                            </button>
+                                        </div>
+                                    </div>
                                     <div class="relative group">
                                         <button class="px-3 py-2 text-gray-400 hover:text-white glass-card rounded-lg">📚</button>
                                         <div class="absolute right-0 top-full mt-2 w-72 bg-gray-900/95 backdrop-blur border border-white/10 rounded-xl p-4 text-xs hidden group-hover:block z-10">
@@ -967,7 +982,76 @@
                 showToast(`✅ Graded ${count} submissions!`, 'success');
             } catch(e) { hideLoading(); showToast('Error: ' + e.message, 'error'); }
         }
-        
+
+        // Skip/Excuse submission actions
+        function skipCurrentSubmission() {
+            if (selectedStudentIndex < 0) return;
+            const sub = currentSubmissions[selectedStudentIndex];
+            if (!confirm(`Skip "${sub.student_name}"? This removes them from the current batch (no Canvas changes).`)) return;
+            currentSubmissions.splice(selectedStudentIndex, 1);
+            selectedStudentIndex = -1;
+            updateSessionStatus();
+            renderStudentList();
+            document.getElementById('student-detail-name').textContent = 'Select a student';
+            document.getElementById('student-detail-file').textContent = '';
+            document.getElementById('code-viewer').innerHTML = '<code class="language-python">Select a student to view code</code>';
+            showToast(`⏭️ Skipped ${sub.student_name}`, 'info');
+        }
+
+        async function markSubmissionMissing() {
+            if (selectedStudentIndex < 0) return;
+            if (!selectedCourse || !selectedAssignment) { showToast('No course/assignment selected', 'warning'); return; }
+            const sub = currentSubmissions[selectedStudentIndex];
+            if (!sub.user_id) { showToast('No Canvas user ID for this submission', 'warning'); return; }
+            if (!confirm(`Mark "${sub.student_name}" as MISSING in Canvas?\n\nThis indicates they submitted the wrong file and need to resubmit.`)) return;
+            showLoading('Marking as missing...');
+            try {
+                const res = await fetch(`/api/courses/${selectedCourse.id}/assignments/${selectedAssignment.id}/submissions/${sub.user_id}/mark-missing`, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    currentSubmissions.splice(selectedStudentIndex, 1);
+                    selectedStudentIndex = -1;
+                    updateSessionStatus();
+                    renderStudentList();
+                    document.getElementById('student-detail-name').textContent = 'Select a student';
+                    document.getElementById('student-detail-file').textContent = '';
+                    document.getElementById('code-viewer').innerHTML = '<code class="language-python">Select a student to view code</code>';
+                    hideLoading();
+                    showToast(`📭 Marked ${sub.student_name} as missing`, 'success');
+                } else {
+                    hideLoading();
+                    showToast('Error: ' + (data.error || 'Failed'), 'error');
+                }
+            } catch(e) { hideLoading(); showToast('Error: ' + e.message, 'error'); }
+        }
+
+        async function excuseSubmission() {
+            if (selectedStudentIndex < 0) return;
+            if (!selectedCourse || !selectedAssignment) { showToast('No course/assignment selected', 'warning'); return; }
+            const sub = currentSubmissions[selectedStudentIndex];
+            if (!sub.user_id) { showToast('No Canvas user ID for this submission', 'warning'); return; }
+            if (!confirm(`Excuse "${sub.student_name}" in Canvas?\n\nThis removes the assignment from their grade calculation entirely.`)) return;
+            showLoading('Excusing submission...');
+            try {
+                const res = await fetch(`/api/courses/${selectedCourse.id}/assignments/${selectedAssignment.id}/submissions/${sub.user_id}/excuse`, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    currentSubmissions.splice(selectedStudentIndex, 1);
+                    selectedStudentIndex = -1;
+                    updateSessionStatus();
+                    renderStudentList();
+                    document.getElementById('student-detail-name').textContent = 'Select a student';
+                    document.getElementById('student-detail-file').textContent = '';
+                    document.getElementById('code-viewer').innerHTML = '<code class="language-python">Select a student to view code</code>';
+                    hideLoading();
+                    showToast(`✖️ Excused ${sub.student_name}`, 'success');
+                } else {
+                    hideLoading();
+                    showToast('Error: ' + (data.error || 'Failed'), 'error');
+                }
+            } catch(e) { hideLoading(); showToast('Error: ' + e.message, 'error'); }
+        }
+
         // Canvas Submit
         function populateCanvasUserDropdown() {
             const sel = document.getElementById('canvas-user-select');
