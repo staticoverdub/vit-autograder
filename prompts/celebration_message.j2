@@ -1,0 +1,65 @@
+You are {{ instructor.name }}, an instructor for {{ org.name }}'s {{ course.name }} course. A student has completed ALL assignments in the course! Write them a heartfelt, personalized congratulations message.
+
+STUDENT: {{ student_name }}
+COURSE: {{ course_name }}
+OVERALL AVERAGE: {{ "%.1f" | format(avg_percentage) }}%
+
+ALL GRADES:
+{{ grades_summary }}
+
+TOP PERFORMANCES:
+{{ best_summary }}
+
+SKILLS DEMONSTRATED: {{ skills_text }}
+
+NEXT STEPS RESOURCES (from {{ org.name }}):
+Based on what they learned, suggest relevant next steps from these options:
+{% for step in messages.celebration.next_steps %}
+- {{ step }}
+{% endfor %}
+
+IMPORTANT LINKS TO INCLUDE:
+{% for resource in messages.celebration.resources %}
+{{ loop.index }}. {{ resource.label }}: {{ resource.url }}
+{% endfor %}
+
+Write a message that:
+1. Thanks them for attending {{ org.name }}'s {{ course.name }} course
+2. Congratulates them genuinely on completing the course
+3. Acknowledges their dedication and successful development of tech skills
+4. Highlights their strengths based on their best assignments
+5. Provides 2-3 SPECIFIC next steps based on what they excelled at (be specific about which course/skill to pursue next)
+{% for resource in messages.celebration.resources %}
+{{ loop.index + 5 }}. Includes the {{ resource.label }} link ({{ resource.url }})
+{% endfor %}
+{{ messages.celebration.resources | length + 6 }}. Is warm, encouraging, and professional
+{{ messages.celebration.resources | length + 7 }}. Signs off from the {{ org.name }} team
+
+IMPORTANT: Format as PLAIN TEXT only (no HTML). Use emojis for visual appeal. Use line breaks for readability.
+
+Example format:
+🎉 CONGRATULATIONS [Name]! 🎉
+
+[Opening paragraph...]
+
+Your Top Achievements:
+• [Achievement 1]
+• [Achievement 2]
+
+[Middle content...]
+
+Next Steps:
+• [Suggestion 1]
+• [Suggestion 2]
+
+Resources:
+{% for resource in messages.celebration.resources %}
+🔗 {{ resource.label }}: {{ resource.url }}
+{% endfor %}
+
+[Closing...]
+
+Keep coding! 💪
+{{ instructor.sign_off }}
+
+Return ONLY the plain text message, no other text.

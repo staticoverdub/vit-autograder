@@ -1,0 +1,94 @@
+# AutoGrader Configuration
+# Copy this file to config.yaml and customize for your organization
+# Environment variables (CANVAS_URL, ORG_NAME, GRADING_MODEL) can override these settings
+
+# Organization branding
+organization:
+  name: "Your Organization"
+  website: "https://example.com"
+  tagline: "AI-Powered Assignment Grading"
+
+# Instructor information for messages
+instructor:
+  name: "Your Name"
+  sign_off: "— Your Teaching Team"
+
+# Canvas LMS settings
+canvas:
+  url: "https://yourschool.instructure.com"
+
+# Course information (used in prompts and messages)
+course:
+  name: "Introduction to Python"
+  type: "introductory"  # introductory, intermediate, advanced
+  audience: "students learning to code"
+
+# Grading configuration
+grading:
+  default_points: 10
+  leniency: "lenient"  # strict, moderate, lenient
+  timeout_seconds: 10
+
+  # Libraries available for student code execution
+  available_libraries:
+    - requests
+    - json
+    - openpyxl
+    - pandas
+    - numpy
+    - matplotlib
+    - math
+    - random
+    - datetime
+    - os
+    - re
+
+  # Default stdin inputs for interactive programs
+  default_inputs: "5\ntest\nyes\n100\n"
+
+  # Claude model to use for grading
+  model: "claude-sonnet-4-20250514"
+
+  # Assignment type detection patterns
+  # Assignments matching these patterns get auto check-off grading (full credit if submitted)
+  checkoff_patterns:
+    - linkedin
+    - opligon
+    - profile
+    - setup
+    - account
+
+  # Assignments matching these patterns use the detailed final project rubric
+  final_project_patterns:
+    - w4p1
+    - w4p2
+    - final
+    - project
+    - capstone
+
+# Message templates configuration
+messages:
+  celebration:
+    # Resources to include in celebration messages
+    resources:
+      - label: "Organization Website"
+        url: "https://example.com"
+      - label: "Upcoming Classes"
+        url: "https://example.com/classes"
+
+    # Suggested next steps for completing students
+    next_steps:
+      - "Advanced Python"
+      - "Web Development"
+      - "Data Science"
+      - "Cloud Computing"
+
+  reminder:
+    deadline_days: 7
+    sign_off: "— Your Instructor"
+
+# Canvas page mappings for custom rubrics
+# Maps assignment name patterns to Canvas wiki page titles containing rubric details
+rubric_page_map:
+  w4p1: "W4P1 Lesson Custom"
+  w4p2: "W4P2 Lesson Custom"

@@ -1,0 +1,16 @@
+# AutoGrader Dependencies
+
+# Web framework
+Flask>=2.0
+
+# AI grading
+anthropic>=0.18.0
+
+# HTTP requests for Canvas API
+requests>=2.28
+
+# Configuration file parsing
+PyYAML>=6.0
+
+# Template rendering (included with Flask, listed for clarity)
+Jinja2>=3.0
