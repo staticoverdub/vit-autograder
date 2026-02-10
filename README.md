@@ -9,7 +9,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
 </p>
 
-An AI-powered, configurable tool to automatically grade Python assignments and submit grades to Canvas LMS.
+An AI-powered, configurable tool to automatically grade Python assignments and submit grades to Canvas LMS. I made this fella to provide better, more useful feedback to my intro to py students at scale. It's solid, but please feel free to improve it :) 
 
 <p align="center">
   <img src="docs/screenshot.png" alt="AutoGrader UI" width="800">
