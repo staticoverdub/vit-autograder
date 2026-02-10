@@ -1,10 +1,16 @@
-.PHONY: run test docker docker-down install
+.PHONY: install test lint run docker docker-down
 
 install:
 	pip install -r requirements.txt
 
 test:
 	pytest tests/ -v
+
+lint:
+	ruff check .
+
+lint-fix:
+	ruff check --fix .
 
 run:
 	python app.py

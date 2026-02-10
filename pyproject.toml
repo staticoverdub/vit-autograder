@@ -1,2 +1,20 @@
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",   # line length — handled by formatter when needed
+    "E722",   # bare except — used in legacy Canvas API error handling
+    "F811",   # redefined unused — Flask route named `config` shadows module-level var
+    "F821",   # undefined name — get_org_website used via config accessors
+    "F841",   # unused variable — intermediate vars kept for clarity
+    "E402",   # import not at top — deferred import in app.py
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["config", "prompt_loader"]

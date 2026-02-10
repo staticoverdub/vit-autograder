@@ -1,6 +1,6 @@
 import sys
 import types
-import os
+
 import pytest
 
 # Stub the anthropic module so `import app` works without installing it.

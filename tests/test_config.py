@@ -1,18 +1,21 @@
-import os
+from pathlib import Path
+
+import yaml
+
 import config as config_module
 from config import (
-    deep_merge,
+    DEFAULTS,
     apply_env_overrides,
-    reload_config,
-    get_config,
-    get_org_name,
+    deep_merge,
     get_canvas_url,
-    get_grading_model,
+    get_config,
     get_default_points,
+    get_grading_model,
     get_leniency,
+    get_org_name,
     get_timeout_seconds,
+    reload_config,
 )
-
 
 # ── deep_merge ──────────────────────────────────────────────────────
 
@@ -139,3 +142,31 @@ class TestAccessorDefaults:
     def test_timeout_default(self, monkeypatch):
         monkeypatch.setattr(config_module, "load_config_file", lambda: {})
         assert get_timeout_seconds() == 10
+
+
+# ── config.yaml.example validation ────────────────────────────────
+
+EXAMPLE_PATH = Path(__file__).resolve().parent.parent / "config.yaml.example"
+
+
+class TestConfigYamlExample:
+    """Validate that config.yaml.example is valid and covers all default sections."""
+
+    def test_parses_without_error(self):
+        with open(EXAMPLE_PATH) as f:
+            cfg = yaml.safe_load(f)
+        assert isinstance(cfg, dict)
+
+    def test_has_all_top_level_sections(self):
+        with open(EXAMPLE_PATH) as f:
+            cfg = yaml.safe_load(f)
+        for key in DEFAULTS:
+            assert key in cfg, f"config.yaml.example missing top-level key: {key}"
+
+    def test_merges_cleanly_with_defaults(self, monkeypatch):
+        with open(EXAMPLE_PATH) as f:
+            cfg = yaml.safe_load(f)
+        merged = deep_merge(DEFAULTS, cfg)
+        # Should still have all default sections after merge
+        for key in DEFAULTS:
+            assert key in merged

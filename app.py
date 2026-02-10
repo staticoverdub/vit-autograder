@@ -3,32 +3,41 @@ AutoGrader - AI-Powered Assignment Grading
 A configurable tool to grade Python assignments and submit to Canvas LMS
 """
 
-from flask import Flask, render_template, request, jsonify, session
-import os
-import zipfile
-import tempfile
-import subprocess
 import json
-import requests
+import os
 import re
-import shutil
+import subprocess
+import tempfile
+import zipfile
 from datetime import datetime
+
+import requests
 from anthropic import Anthropic
+from flask import Flask, jsonify, render_template, request
 
 # Import configuration
 from config import (
-    get_config, get_canvas_url, get_org_name, get_org_tagline,
-    get_instructor_name, get_instructor_sign_off,
-    get_course_name, get_course_type, get_course_audience,
-    get_grading_model, get_timeout_seconds, get_available_libraries,
-    get_default_inputs, get_default_points, get_leniency,
-    get_checkoff_patterns, get_final_project_patterns,
-    get_celebration_config, get_reminder_config, get_rubric_page_map
+    get_available_libraries,
+    get_canvas_url,
+    get_checkoff_patterns,
+    get_config,
+    get_course_name,
+    get_default_inputs,
+    get_default_points,
+    get_final_project_patterns,
+    get_grading_model,
+    get_instructor_name,
+    get_org_name,
+    get_org_tagline,
+    get_rubric_page_map,
+    get_timeout_seconds,
 )
 from prompt_loader import (
-    render_grading_prompt, render_final_project_prompt,
-    render_single_grading_prompt, render_celebration_message,
-    render_reminder_message
+    render_celebration_message,
+    render_final_project_prompt,
+    render_grading_prompt,
+    render_reminder_message,
+    render_single_grading_prompt,
 )
 
 app = Flask(__name__)
@@ -72,7 +81,7 @@ CANVAS_URL = get_canvas_url()
 CANVAS_TOKEN = os.environ.get("CANVAS_TOKEN", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
-print(f"Config loaded:", flush=True)
+print("Config loaded:", flush=True)
 print(f"  Organization: {get_org_name()}", flush=True)
 print(f"  CANVAS_URL: {CANVAS_URL}", flush=True)
 print(f"  CANVAS_TOKEN: {'[SET]' if CANVAS_TOKEN else '[NOT SET]'}", flush=True)
@@ -113,7 +122,7 @@ def get_courses():
         "per_page": 50,
         "include[]": ["total_students"]
     }
-    
+
     try:
         response = requests.get(url, headers=get_headers(), params=params)
         if response.status_code == 200:
@@ -134,7 +143,7 @@ def get_assignments(course_id):
         "per_page": 100,
         "order_by": "due_at"
     }
-    
+
     try:
         response = requests.get(url, headers=get_headers(), params=params)
         if response.status_code == 200:
@@ -152,7 +161,7 @@ def get_assignments(course_id):
 def get_assignment_details(course_id, assignment_id):
     """Get detailed info about an assignment"""
     url = f"{CANVAS_URL}/api/v1/courses/{course_id}/assignments/{assignment_id}"
-    
+
     try:
         response = requests.get(url, headers=get_headers())
         if response.status_code == 200:
@@ -170,12 +179,12 @@ def get_submissions_with_files(course_id, assignment_id):
         "per_page": 100,
         "include[]": ["user", "submission_comments"]
     }
-    
+
     try:
         response = requests.get(url, headers=get_headers(), params=params)
         if response.status_code == 200:
             submissions = response.json()
-            
+
             # Also fetch full user details for better matching
             for sub in submissions:
                 user_id = sub.get('user_id')
@@ -188,7 +197,7 @@ def get_submissions_with_files(course_id, assignment_id):
                             sub['user'] = {}
                         sub['user']['email'] = profile.get('primary_email', profile.get('login_id', ''))
                         sub['user']['login_id'] = profile.get('login_id', '')
-            
+
             return submissions
         return []
     except Exception as e:
@@ -211,12 +220,12 @@ def download_submission_file(url):
 def submit_grade_to_canvas(course_id, assignment_id, student_id, grade, comment):
     """Submit a grade and comment to Canvas"""
     url = f"{CANVAS_URL}/api/v1/courses/{course_id}/assignments/{assignment_id}/submissions/{student_id}"
-    
+
     data = {
         "submission": {"posted_grade": str(grade)},
         "comment": {"text_comment": comment}
     }
-    
+
     try:
         response = requests.put(url, headers=get_headers(), json=data)
         return response.status_code == 200, response.text
@@ -245,15 +254,15 @@ def run_python_code(code, timeout=None):
             timeout=timeout,
             input=get_default_inputs()  # Default inputs for interactive programs
         )
-        
+
         output = result.stdout
         errors = result.stderr
-        
+
         # Clean up ANSI codes if any
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
         output = ansi_escape.sub('', output)
         errors = ansi_escape.sub('', errors)
-        
+
         return {
             "success": result.returncode == 0,
             "output": output[:2000] if output else "(no output)",
@@ -323,9 +332,9 @@ def grade_with_claude(submissions, assignment_info=""):
             max_tokens=4096,
             messages=[{"role": "user", "content": prompt}]
         )
-        
+
         response_text = message.content[0].text
-        
+
         # Extract JSON from response
         try:
             return json.loads(response_text)
@@ -334,7 +343,7 @@ def grade_with_claude(submissions, assignment_info=""):
             if json_match:
                 return json.loads(json_match.group())
             return {"error": "Failed to parse response", "raw": response_text}
-            
+
     except Exception as e:
         return {"error": str(e)}
 
@@ -344,10 +353,10 @@ def grade_with_claude(submissions, assignment_info=""):
 def extract_zip(zip_file):
     """Extract zip file and return list of .py files with content"""
     temp_dir = tempfile.mkdtemp()
-    
+
     with zipfile.ZipFile(zip_file, 'r') as z:
         z.extractall(temp_dir)
-    
+
     submissions = []
     for root, dirs, files in os.walk(temp_dir):
         for file in files:
@@ -358,12 +367,12 @@ def extract_zip(zip_file):
                         code = f.read()
                 except:
                     code = "# Could not read file"
-                
+
                 # Extract student name from filename
                 # Format: "studentname_12345_67890_assignment.py"
                 parts = file.split('_')
                 student_name = parts[0].title() if parts else "Unknown"
-                
+
                 submissions.append({
                     "filename": file,
                     "filepath": filepath,
@@ -371,7 +380,7 @@ def extract_zip(zip_file):
                     "code": code,
                     "run_result": None
                 })
-    
+
     return submissions, temp_dir
 
 
@@ -390,19 +399,19 @@ def index():
 def config():
     """Get or set configuration"""
     global CANVAS_URL, CANVAS_TOKEN, ANTHROPIC_API_KEY
-    
+
     if request.method == 'POST':
         data = request.json
-        
+
         if data.get('canvas_url'):
             CANVAS_URL = data['canvas_url']
         if data.get('canvas_token'):
             CANVAS_TOKEN = data['canvas_token']
         if data.get('anthropic_key'):
             ANTHROPIC_API_KEY = data['anthropic_key']
-        
+
         return jsonify({"status": "updated"})
-    
+
     return jsonify({
         "canvas_url": CANVAS_URL,
         "has_canvas_token": bool(CANVAS_TOKEN),
@@ -473,7 +482,6 @@ def api_assignments(course_id):
     return jsonify(assignments)
 
 
-import json
 from pathlib import Path
 
 # Track who received celebration/reminder messages
@@ -509,7 +517,7 @@ def has_been_celebrated(course_id, user_id):
     key = f"{course_id}_{user_id}"
     if key in celebrated:
         return True
-    
+
     # Also check Canvas conversations for a message with congratulations subject
     try:
         url = f"{CANVAS_URL}/api/v1/conversations"
@@ -529,7 +537,7 @@ def has_been_celebrated(course_id, user_id):
                     return True
     except Exception as e:
         print(f"Error checking Canvas conversations: {e}")
-    
+
     return False
 
 def get_reminded_students():
@@ -567,22 +575,22 @@ def get_student_all_grades(course_id, user_id):
     """Get all assignment grades for a student in a course"""
     url = f"{CANVAS_URL}/api/v1/courses/{course_id}/assignments"
     params = {"per_page": 100}
-    
+
     try:
         # Get all assignments
         response = requests.get(url, headers=get_headers(), params=params)
         if response.status_code != 200:
             return None
-        
+
         assignments = response.json()
-        
+
         # Get submissions for each assignment
         grades = []
         for assignment in assignments:
             if assignment.get('published', True):  # Only published assignments
                 sub_url = f"{CANVAS_URL}/api/v1/courses/{course_id}/assignments/{assignment['id']}/submissions/{user_id}"
                 sub_response = requests.get(sub_url, headers=get_headers())
-                
+
                 if sub_response.status_code == 200:
                     sub = sub_response.json()
                     grades.append({
@@ -594,7 +602,7 @@ def get_student_all_grades(course_id, user_id):
                         "graded": sub.get('grade') is not None,
                         "submitted": sub.get('submitted_at') is not None
                     })
-        
+
         return grades
     except Exception as e:
         print(f"Error getting student grades: {e}")
@@ -605,12 +613,12 @@ def check_all_graded(grades):
     """Check if all assignments are graded"""
     if not grades:
         return False
-    
+
     # Filter to assignments that were submitted
     submitted = [g for g in grades if g['submitted']]
     if not submitted:
         return False
-    
+
     # Check if all submitted assignments are graded
     return all(g['graded'] for g in submitted)
 
@@ -690,7 +698,7 @@ def get_course_instructors(course_id):
     """Get all teachers for a course"""
     url = f"{CANVAS_URL}/api/v1/courses/{course_id}/users"
     params = {"enrollment_type[]": "teacher", "per_page": 50}
-    
+
     try:
         response = requests.get(url, headers=get_headers(), params=params)
         if response.status_code == 200:
@@ -708,13 +716,13 @@ def send_canvas_message(course_id, user_id, subject, body, cc_instructors=True):
     """Send a message via Canvas Conversations API - WORKING FORMAT"""
     import sys
     url = f"{CANVAS_URL}/api/v1/conversations"
-    
-    print(f"=== Sending Canvas Message ===", flush=True)
+
+    print("=== Sending Canvas Message ===", flush=True)
     print(f"Recipient: {user_id}", flush=True)
     print(f"Subject: {subject}", flush=True)
     print(f"CC Instructors: {cc_instructors}", flush=True)
     sys.stdout.flush()
-    
+
     # Build recipient list
     recipients = [str(user_id)]
     if cc_instructors:
@@ -722,9 +730,9 @@ def send_canvas_message(course_id, user_id, subject, body, cc_instructors=True):
         for inst_id in instructors:
             if str(inst_id) != str(user_id):
                 recipients.append(str(inst_id))
-    
+
     print(f"All recipients: {recipients}", flush=True)
-    
+
     # WORKING FORMAT: list of tuples with multiple recipients[]
     params = []
     for rid in recipients:
@@ -733,12 +741,12 @@ def send_canvas_message(course_id, user_id, subject, body, cc_instructors=True):
     params.append(("body", body))
     params.append(("group_conversation", "true"))
     params.append(("context_code", f"course_{course_id}"))
-    
+
     try:
         response = requests.post(url, headers=get_headers(), data=params)
         print(f"Response status: {response.status_code}", flush=True)
         sys.stdout.flush()
-        
+
         if response.status_code in [200, 201]:
             return True, response.text
         else:
@@ -755,56 +763,56 @@ def student_dashboard(course_id):
     # Get all students in course
     url = f"{CANVAS_URL}/api/v1/courses/{course_id}/users"
     params = {"enrollment_type[]": "student", "per_page": 100}
-    
+
     try:
         response = requests.get(url, headers=get_headers(), params=params)
         if response.status_code != 200:
             return jsonify({"error": "Failed to fetch students"}), 400
-        
+
         students = response.json()
-        
+
         # Get course info
         course_url = f"{CANVAS_URL}/api/v1/courses/{course_id}"
         course_response = requests.get(course_url, headers=get_headers())
         course_data = course_response.json() if course_response.status_code == 200 else {}
         course_name = course_data.get('name', 'Course')
-        
+
         # Get all assignments
         assignments_url = f"{CANVAS_URL}/api/v1/courses/{course_id}/assignments"
         assignments_response = requests.get(assignments_url, headers=get_headers(), params={"per_page": 100, "order_by": "due_at"})
         all_assignments = assignments_response.json() if assignments_response.status_code == 200 else []
-        
+
         # Build assignment map with order preserved
         assignment_map = {a['id']: a['name'] for a in all_assignments}
         assignment_order = [a['id'] for a in all_assignments]  # Preserve original order
         total_assignments = len(all_assignments)
-        
+
         # Track stats - include scores for average calculation
         student_data = []
         grade_distribution = {"excellent": 0, "good": 0, "needs_work": 0, "ungraded": 0}
         assignment_completion = {a['id']: {
-            "name": a['name'], 
-            "completed": 0, 
+            "name": a['name'],
+            "completed": 0,
             "total": len(students),
             "scores": [],  # Track all scores for this assignment
             "points_possible": a.get('points_possible', 10),
             "due_at": a.get('due_at'),
             "position": a.get('position', 999)
         } for a in all_assignments}
-        
+
         for student in students:
             user_id = student.get('id')
             name = student.get('name', 'Unknown')
-            
+
             # Get grades
             grades = get_student_all_grades(course_id, user_id)
             if not grades:
                 grades = []
-            
+
             # Calculate stats
             graded_assignments = [g for g in grades if g.get('graded') and g.get('score') is not None]
             missing_assignments = [g.get('assignment_name', 'Unknown') for g in grades if not g.get('graded') or g.get('score') is None]
-            
+
             # Calculate average
             if graded_assignments:
                 total_score = sum(g['score'] for g in graded_assignments if g.get('points_possible'))
@@ -814,11 +822,11 @@ def student_dashboard(course_id):
             else:
                 avg_percent = 0
                 avg_grade = 0
-            
+
             # Progress
             completed_count = len(graded_assignments)
             progress_percent = (completed_count / total_assignments * 100) if total_assignments > 0 else 0
-            
+
             # Track completion per assignment AND scores
             for g in graded_assignments:
                 if g.get('assignment_id') in assignment_completion:
@@ -827,15 +835,15 @@ def student_dashboard(course_id):
                         # Store percentage score for averaging
                         pct = (g['score'] / g['points_possible'] * 100) if g['points_possible'] > 0 else 0
                         assignment_completion[g['assignment_id']]['scores'].append(pct)
-            
+
             # Determine status
             is_complete = completed_count >= total_assignments and total_assignments > 0
             celebrated = has_been_celebrated(course_id, user_id)
             reminded = has_been_reminded_recently(course_id, user_id)
-            
+
             # Has at least one submission
             has_submissions = completed_count > 0
-            
+
             student_data.append({
                 "user_id": user_id,
                 "name": name,
@@ -851,7 +859,7 @@ def student_dashboard(course_id):
                 "has_submissions": has_submissions,
                 "graded_assignment_ids": [g.get('assignment_id') for g in graded_assignments]
             })
-            
+
             # Grade distribution
             if avg_grade >= 9:
                 grade_distribution["excellent"] += 1
@@ -861,15 +869,15 @@ def student_dashboard(course_id):
                 grade_distribution["needs_work"] += 1
             else:
                 grade_distribution["ungraded"] += 1
-        
+
         # Sort by progress (complete first, then by progress %)
         student_data.sort(key=lambda x: (-x['is_complete'], -x['progress_percent'], x['name']))
-        
+
         # Filter to only those with 5+ completed assignments (active students)
         active_students = [s for s in student_data if s['completed'] >= 5]
         inactive_students = [s for s in student_data if s['has_submissions'] and s['completed'] < 5]
         active_count = len(active_students)
-        
+
         # Recalculate grade distribution for active students only
         grade_distribution = {"excellent": 0, "good": 0, "needs_work": 0, "ungraded": 0}
         for s in active_students:
@@ -881,18 +889,18 @@ def student_dashboard(course_id):
                 grade_distribution["needs_work"] += 1
             else:
                 grade_distribution["ungraded"] += 1
-        
+
         # Recalculate assignment completion for active students only (using stored IDs)
         # Also collect scores for active students
         assignment_completion_active = {a['id']: {
-            "name": a['name'], 
-            "completed": 0, 
+            "name": a['name'],
+            "completed": 0,
             "scores": [],
             "points_possible": assignment_completion[a['id']]['points_possible'],
             "due_at": assignment_completion[a['id']]['due_at'],
             "position": assignment_completion[a['id']]['position']
         } for a in all_assignments}
-        
+
         for s in active_students:
             for aid in s.get('graded_assignment_ids', []):
                 if aid in assignment_completion_active:
@@ -901,7 +909,7 @@ def student_dashboard(course_id):
             for aid in assignment_completion_active:
                 # Scores were tracked in the original loop, copy them over
                 pass
-        
+
         # Copy scores from original assignment_completion (which tracked all students)
         # But we want to recalculate for active only - we need to re-examine
         # Actually, let's track scores properly during the active student filtering
@@ -911,21 +919,21 @@ def student_dashboard(course_id):
                 # We stored the assignment_id but not the score in student data
                 # The scores are in assignment_completion from ALL students
                 pass
-        
+
         # For now, use scores from all students who submitted (close enough for insights)
         # This is a reasonable proxy since we're measuring assignment difficulty
-        
+
         # Assignment completion stats - PRESERVE ORDER by due_at/position
         assignment_stats = []
         for aid in assignment_order:  # Use preserved order!
             data = assignment_completion_active.get(aid, {})
             orig_data = assignment_completion.get(aid, {})
             completion_rate = (data.get('completed', 0) / active_count * 100) if active_count > 0 else 0
-            
+
             # Calculate average score from all submissions
             scores = orig_data.get('scores', [])
             avg_score = sum(scores) / len(scores) if scores else None
-            
+
             assignment_stats.append({
                 "id": aid,
                 "name": data.get('name', 'Unknown'),
@@ -938,10 +946,10 @@ def student_dashboard(course_id):
             })
         # DON'T sort - keep original order!
         # assignment_stats.sort(key=lambda x: x['completion_rate'])
-        
+
         # Calculate insights from the data
         insights = []
-        
+
         # Find struggling assignments (low completion or low scores)
         for a in assignment_stats:
             if a['completion_rate'] < 60:
@@ -958,7 +966,7 @@ def student_dashboard(course_id):
                     "message": f"'{a['name']}' avg score is {a['avg_score']}% - may need review",
                     "assignment": a['name']
                 })
-        
+
         # Engagement dropoff detection
         if len(assignment_stats) >= 3:
             first_half = assignment_stats[:len(assignment_stats)//2]
@@ -971,19 +979,19 @@ def student_dashboard(course_id):
                     "severity": "warning",
                     "message": f"Engagement dropped from {first_avg:.0f}% to {second_avg:.0f}% in second half of course"
                 })
-        
+
         # Count students needing attention
         needs_reminder = len([s for s in active_students if not s['is_complete'] and not s['reminded_recently']])
         ready_to_celebrate = len([s for s in active_students if s['is_complete'] and not s['celebrated']])
-        
+
         # Remove graded_assignment_ids from response (not needed in frontend)
         for s in active_students:
             s.pop('graded_assignment_ids', None)
-        
+
         # Summary stats
         complete_count = len([s for s in active_students if s['is_complete']])
         celebrated_count = len([s for s in active_students if s['celebrated']])
-        
+
         return jsonify({
             "course_name": course_name,
             "total_students": len(students),
@@ -1000,7 +1008,7 @@ def student_dashboard(course_id):
             "ready_to_celebrate": ready_to_celebrate,
             "students": active_students
         })
-        
+
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -1013,37 +1021,37 @@ def check_celebrations(course_id):
     # Get all students in course
     url = f"{CANVAS_URL}/api/v1/courses/{course_id}/users"
     params = {"enrollment_type[]": "student", "per_page": 100}
-    
+
     try:
         response = requests.get(url, headers=get_headers(), params=params)
         if response.status_code != 200:
             return jsonify({"error": "Failed to fetch students"}), 400
-        
+
         students = response.json()
-        
+
         # Get course name
         course_url = f"{CANVAS_URL}/api/v1/courses/{course_id}"
         course_response = requests.get(course_url, headers=get_headers())
         course_name = course_response.json().get('name', 'the course') if course_response.status_code == 200 else 'the course'
-        
+
         eligible = []
         already_celebrated = []
         not_complete = []
-        
+
         for student in students:
             user_id = student.get('id')
             name = student.get('name', 'Unknown')
-            
+
             if has_been_celebrated(course_id, user_id):
                 already_celebrated.append({"user_id": user_id, "name": name})
                 continue
-            
+
             grades = get_student_all_grades(course_id, user_id)
             if grades and check_all_graded(grades):
                 # Calculate average
                 graded = [g for g in grades if g['graded'] and g['score'] is not None and g['points_possible']]
                 avg = (sum(g['score'] for g in graded) / sum(g['points_possible'] for g in graded) * 100) if graded else 0
-                
+
                 eligible.append({
                     "user_id": user_id,
                     "name": name,
@@ -1058,14 +1066,14 @@ def check_celebrations(course_id):
                     "name": name,
                     "progress": f"{graded_count}/{total_count}"
                 })
-        
+
         return jsonify({
             "course_name": course_name,
             "eligible": eligible,
             "already_celebrated": already_celebrated,
             "not_complete": not_complete
         })
-        
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1073,39 +1081,39 @@ def check_celebrations(course_id):
 @app.route('/api/courses/<course_id>/send-celebration/<user_id>', methods=['POST'])
 def send_celebration(course_id, user_id):
     """Generate and send a celebration message to a student"""
-    
+
     # Check if already celebrated
     if has_been_celebrated(course_id, user_id):
         return jsonify({"error": "Student already received celebration message"}), 400
-    
+
     # Get student info
     user_url = f"{CANVAS_URL}/api/v1/users/{user_id}/profile"
     user_response = requests.get(user_url, headers=get_headers())
     if user_response.status_code != 200:
         return jsonify({"error": "Failed to fetch student info"}), 400
-    
+
     student = user_response.json()
     student_name = student.get('name', 'Student')
-    
+
     # Get course info
     course_url = f"{CANVAS_URL}/api/v1/courses/{course_id}"
     course_response = requests.get(course_url, headers=get_headers())
     course_name = course_response.json().get('name', 'the course') if course_response.status_code == 200 else 'the course'
-    
+
     # Get grades
     grades = get_student_all_grades(course_id, user_id)
     if not grades:
         return jsonify({"error": "Failed to fetch student grades"}), 400
-    
+
     # Generate message
     html_message = generate_celebration_message(student_name, grades, course_name)
     if not html_message:
         return jsonify({"error": "Failed to generate message"}), 500
-    
+
     # Send via Canvas
     subject = f"🎉 Congratulations on Completing {course_name}!"
     success, response = send_canvas_message(course_id, user_id, subject, html_message)
-    
+
     if success:
         mark_student_celebrated(course_id, user_id)
         return jsonify({
@@ -1120,27 +1128,27 @@ def send_celebration(course_id, user_id):
 @app.route('/api/courses/<course_id>/preview-celebration/<user_id>')
 def preview_celebration(course_id, user_id):
     """Preview a celebration message without sending"""
-    
+
     # Get student info
     user_url = f"{CANVAS_URL}/api/v1/users/{user_id}/profile"
     user_response = requests.get(user_url, headers=get_headers())
     student_name = user_response.json().get('name', 'Student') if user_response.status_code == 200 else 'Student'
-    
+
     # Get course info
     course_url = f"{CANVAS_URL}/api/v1/courses/{course_id}"
     course_response = requests.get(course_url, headers=get_headers())
     course_name = course_response.json().get('name', 'the course') if course_response.status_code == 200 else 'the course'
-    
+
     # Get grades
     grades = get_student_all_grades(course_id, user_id)
     if not grades:
         return jsonify({"error": "Failed to fetch student grades"}), 400
-    
+
     # Generate message
     html_message = generate_celebration_message(student_name, grades, course_name)
     if not html_message:
         return jsonify({"error": "Failed to generate message"}), 500
-    
+
     return jsonify({
         "student_name": student_name,
         "html": html_message
@@ -1154,30 +1162,30 @@ def send_reminder(course_id, user_id):
     try:
         data = request.json or {}
         missing_assignments = data.get('missing', [])
-        
-        print(f"=== Send Reminder ===", flush=True)
+
+        print("=== Send Reminder ===", flush=True)
         print(f"Course: {course_id}, User: {user_id}", flush=True)
         print(f"Missing assignments: {missing_assignments}", flush=True)
         sys.stdout.flush()
-        
+
         # Get student info
         user_url = f"{CANVAS_URL}/api/v1/users/{user_id}/profile"
         user_response = requests.get(user_url, headers=get_headers())
         print(f"User API response: {user_response.status_code}", flush=True)
         if user_response.status_code != 200:
             return jsonify({"error": f"Failed to fetch student info: {user_response.status_code}"}), 400
-        
+
         student = user_response.json()
         student_name = student.get('name', 'Student')
         first_name = student_name.split()[0] if student_name else 'Student'
         print(f"Student: {student_name}", flush=True)
-        
+
         # Get course info
         course_url = f"{CANVAS_URL}/api/v1/courses/{course_id}"
         course_response = requests.get(course_url, headers=get_headers())
         course_name = course_response.json().get('name', 'the course') if course_response.status_code == 200 else 'the course'
         print(f"Course: {course_name}", flush=True)
-        
+
         # Generate reminder message from template
         missing_list = "\n".join([f"  • {a}" for a in missing_assignments])
 
@@ -1186,17 +1194,17 @@ def send_reminder(course_id, user_id):
             course_name=course_name,
             missing_list=missing_list
         )
-        
+
         # Send via Canvas
         subject = f"📚 Reminder: Complete Your {course_name} Assignments"
-        print(f"About to send message...", flush=True)
+        print("About to send message...", flush=True)
         sys.stdout.flush()
-        
+
         success, response = send_canvas_message(course_id, user_id, subject, message)
-        
+
         print(f"Send result: success={success}", flush=True)
         sys.stdout.flush()
-        
+
         if success:
             mark_student_reminded(course_id, user_id)
             return jsonify({
@@ -1219,7 +1227,7 @@ def test_reminder(course_id):
     """Send a test reminder message to the first course instructor"""
     import sys
     try:
-        print(f"=== TEST REMINDER ===", flush=True)
+        print("=== TEST REMINDER ===", flush=True)
 
         # Get instructors for this course
         instructors = get_course_instructors(course_id)
@@ -1254,7 +1262,7 @@ def test_celebration(course_id):
     """Send a test celebration message to the first course instructor"""
     import sys
     try:
-        print(f"=== TEST CELEBRATION ===", flush=True)
+        print("=== TEST CELEBRATION ===", flush=True)
 
         # Get instructors for this course
         instructors = get_course_instructors(course_id)
@@ -1288,12 +1296,12 @@ def send_canvas_message_simple(course_id, user_id, subject, body):
     """Send Canvas message - WORKING FORMAT with list of tuples"""
     import sys
     url = f"{CANVAS_URL}/api/v1/conversations"
-    
-    print(f"=== Sending Canvas Message ===", flush=True)
+
+    print("=== Sending Canvas Message ===", flush=True)
     print(f"Recipient: {user_id}", flush=True)
     print(f"Subject: {subject}", flush=True)
     sys.stdout.flush()
-    
+
     # WORKING FORMAT: list of tuples
     params = [
         ("recipients[]", str(user_id)),
@@ -1301,13 +1309,13 @@ def send_canvas_message_simple(course_id, user_id, subject, body):
         ("body", body),
         ("context_code", f"course_{course_id}")
     ]
-    
+
     try:
         response = requests.post(url, headers=get_headers(), data=params)
         print(f"Response status: {response.status_code}", flush=True)
         print(f"Response: {response.text[:300]}", flush=True)
         sys.stdout.flush()
-        
+
         return response.status_code in [200, 201], response.text
     except Exception as e:
         print(f"Exception: {e}", flush=True)
@@ -1318,42 +1326,42 @@ def send_canvas_message_simple(course_id, user_id, subject, body):
 def preview_reminder(course_id, user_id):
     """Preview a reminder message without sending"""
     missing = request.args.get('missing', '').split(',') if request.args.get('missing') else []
-    
+
     # Get student info
     user_url = f"{CANVAS_URL}/api/v1/users/{user_id}/profile"
     user_response = requests.get(user_url, headers=get_headers())
     student_name = user_response.json().get('name', 'Student') if user_response.status_code == 200 else 'Student'
     first_name = student_name.split()[0] if student_name else 'Student'
-    
+
     # Get course info
     course_url = f"{CANVAS_URL}/api/v1/courses/{course_id}"
     course_response = requests.get(course_url, headers=get_headers())
     course_name = course_response.json().get('name', 'the course') if course_response.status_code == 200 else 'the course'
-    
+
     html_message = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #6366f1;">📚 Friendly Reminder from {course_name}</h2>
-        
+
         <p>Hi {first_name}!</p>
-        
+
         <p>You're making great progress in <strong>{course_name}</strong>! 🌟</p>
-        
+
         <p>We noticed you still have a few assignments to complete:</p>
-        
+
         <ul style="background: #f3f4f6; padding: 20px 40px; border-radius: 8px; margin: 20px 0;">
             {''.join(f'<li style="margin: 8px 0;"><strong>{a}</strong></li>' for a in missing)}
         </ul>
-        
+
         <p>Please try to submit these within the <strong>next week</strong> so you can complete the course and receive your certificate! 🎓</p>
-        
+
         <p>If you have any questions or need help, don't hesitate to reach out. We're here to support you!</p>
-        
+
         <p style="margin-top: 30px;">Keep up the great work! 💪</p>
-        
+
         <p style="color: #6b7280;">— Your {course_name} Instructor</p>
     </div>
     """
-    
+
     return jsonify({
         "student_name": student_name,
         "html": html_message
@@ -1369,38 +1377,38 @@ def get_canvas_page_content(course_id, page_title):
     # First, search for the page
     url = f"{CANVAS_URL}/api/v1/courses/{course_id}/pages"
     params = {"search_term": page_title, "per_page": 20}
-    
+
     try:
         response = requests.get(url, headers=get_headers(), params=params)
         if response.status_code != 200:
             print(f"Error searching pages: {response.status_code}")
             return None
-        
+
         pages = response.json()
-        
+
         # Find matching page
         target_page = None
         for page in pages:
             if page_title.lower() in page.get('title', '').lower():
                 target_page = page
                 break
-        
+
         if not target_page:
             print(f"Page not found: {page_title}")
             return None
-        
+
         # Fetch full page content
         page_url = target_page.get('url')
         content_url = f"{CANVAS_URL}/api/v1/courses/{course_id}/pages/{page_url}"
-        
+
         content_response = requests.get(content_url, headers=get_headers())
         if content_response.status_code == 200:
             page_data = content_response.json()
             # Return the HTML body content
             return page_data.get('body', '')
-        
+
         return None
-        
+
     except Exception as e:
         print(f"Error fetching page content: {e}")
         return None
@@ -1410,7 +1418,7 @@ def html_to_text(html_content):
     """Convert HTML to plain text for use in prompts"""
     if not html_content:
         return ""
-    
+
     # Simple HTML stripping - remove tags but keep text
     import re
     # Remove script and style elements
@@ -1429,7 +1437,7 @@ def html_to_text(html_content):
     # Decode HTML entities
     import html
     text = html.unescape(text)
-    
+
     return text
 
 
@@ -1447,12 +1455,12 @@ def get_rubric_for_assignment(course_id, assignment_name):
                 text_content = html_to_text(html_content)
                 print(f"Found rubric content ({len(text_content)} chars)")
                 return text_content
-    
+
     # Check custom rubrics stored in memory
     for pattern, rubric in custom_rubrics.items():
         if pattern in assignment_lower:
             return rubric
-    
+
     # Return default rubric
     return FINAL_PROJECT_RUBRIC
 
@@ -1485,11 +1493,11 @@ def grade_checkoff_assignment(submission):
         submission.get('code') or  # If we have code content
         submission.get('filename')  # If we have a filename
     )
-    
+
     # Get first name for personalized comment
     student_name = submission.get('student_name', 'Student')
     first_name = student_name.split()[0] if student_name else 'Student'
-    
+
     if has_submission:
         return {
             "grade": 10,
@@ -1588,9 +1596,9 @@ def grade_final_project_with_claude(submissions, custom_rubric=None):
             max_tokens=4096,
             messages=[{"role": "user", "content": prompt}]
         )
-        
+
         response_text = message.content[0].text
-        
+
         try:
             return json.loads(response_text)
         except json.JSONDecodeError:
@@ -1598,7 +1606,7 @@ def grade_final_project_with_claude(submissions, custom_rubric=None):
             if json_match:
                 return json.loads(json_match.group())
             return {"error": "Failed to parse response", "raw": response_text}
-            
+
     except Exception as e:
         return {"error": str(e)}
 
@@ -1610,17 +1618,17 @@ custom_rubrics = {}
 def manage_rubrics():
     """Get or set custom rubrics"""
     global custom_rubrics
-    
+
     if request.method == 'POST':
         data = request.json
         assignment_pattern = data.get('pattern', '').lower()
         rubric_text = data.get('rubric', '')
-        
+
         if assignment_pattern and rubric_text:
             custom_rubrics[assignment_pattern] = rubric_text
             return jsonify({"status": "saved", "pattern": assignment_pattern})
         return jsonify({"error": "Missing pattern or rubric"}), 400
-    
+
     return jsonify(custom_rubrics)
 
 
@@ -1628,12 +1636,12 @@ def manage_rubrics():
 def preview_rubric(course_id):
     """Preview what rubric will be used for a given assignment"""
     assignment_name = request.args.get('assignment', '')
-    
+
     if not assignment_name:
         return jsonify({"error": "Missing assignment parameter"}), 400
-    
+
     assignment_type = detect_assignment_type(assignment_name)
-    
+
     if assignment_type == 'checkoff':
         return jsonify({
             "assignment_type": "checkoff",
@@ -1650,7 +1658,7 @@ def preview_rubric(course_id):
             if pattern in assignment_name.lower():
                 source = f"Canvas page: {page_title}"
                 break
-        
+
         return jsonify({
             "assignment_type": "final_project",
             "rubric": rubric,
@@ -1670,12 +1678,12 @@ def grade_batch():
     data = request.json
     assignment_name = data.get('assignment_name', '')
     submissions = data.get('submissions', [])
-    
+
     if not submissions:
         return jsonify({"error": "No submissions provided"}), 400
-    
+
     assignment_type = detect_assignment_type(assignment_name)
-    
+
     if assignment_type == 'checkoff':
         # Auto-grade check-off assignments
         results = []
@@ -1686,34 +1694,34 @@ def grade_batch():
             grade_info['strengths'] = ['Completed requirement']
             grade_info['suggestions'] = []
             results.append(grade_info)
-        
+
         return jsonify({
             "assignment_type": "checkoff",
             "grades": results
         })
-    
+
     elif assignment_type == 'final_project':
         # Get rubric
         course_id = current_session.get('course')
         rubric = get_rubric_for_assignment(course_id, assignment_name) if course_id else FINAL_PROJECT_RUBRIC
-        
+
         result = grade_final_project_with_claude(submissions, rubric)
-        
+
         if 'error' in result:
             return jsonify(result), 400
-        
+
         return jsonify({
             "assignment_type": "final_project",
             "grades": result.get('grades', [])
         })
-    
+
     else:
         # Standard grading
         result = grade_with_claude(submissions, '')
-        
+
         if 'error' in result:
             return jsonify(result), 400
-        
+
         return jsonify({
             "assignment_type": "standard",
             "grades": result.get('grades', [])
@@ -1793,9 +1801,9 @@ FILE: {filename}
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}]
         )
-        
+
         response_text = message.content[0].text
-        
+
         try:
             grade_info = json.loads(response_text)
         except json.JSONDecodeError:
@@ -1804,13 +1812,13 @@ FILE: {filename}
                 grade_info = json.loads(json_match.group())
             else:
                 return jsonify({"error": "Failed to parse AI response"}), 500
-        
+
         # Ensure correct student info
         grade_info['student_name'] = student_name
         grade_info['filename'] = filename
-        
+
         return jsonify({"grade": grade_info, "assignment_type": assignment_type})
-        
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1822,12 +1830,12 @@ def grade_smart():
     assignment_name = data.get('assignment_name', '')
     context = data.get('context', '')
     submissions = current_session.get('submissions', [])
-    
+
     if not submissions:
         return jsonify({"error": "No submissions loaded"}), 400
-    
+
     assignment_type = detect_assignment_type(assignment_name)
-    
+
     if assignment_type == 'checkoff':
         # Auto-grade check-off assignments
         results = []
@@ -1839,31 +1847,31 @@ def grade_smart():
             grade_info['suggestions'] = []
             results.append(grade_info)
             sub['grade_info'] = grade_info
-        
+
         current_session['submissions'] = submissions
         return jsonify({
             "assignment_type": "checkoff",
             "grades": results
         })
-    
+
     elif assignment_type == 'final_project':
         # Run code first
         for sub in submissions:
             if sub.get('code') and not sub.get('run_result'):
                 sub['run_result'] = run_python_code(sub['code'])
-        
+
         # Get course_id from session or request
         course_id = current_session.get('course') or data.get('course_id')
-        
+
         # Fetch rubric from Canvas page or use default
         rubric = get_rubric_for_assignment(course_id, assignment_name) if course_id else FINAL_PROJECT_RUBRIC
-        
+
         # Grade with detailed rubric
         result = grade_final_project_with_claude(submissions, rubric)
-        
+
         if 'error' in result:
             return jsonify(result), 400
-        
+
         # Match grades to submissions
         for grade in result.get('grades', []):
             for sub in submissions:
@@ -1871,31 +1879,31 @@ def grade_smart():
                     grade.get('student_name', '').lower() in sub.get('student_name', '').lower()):
                     sub['grade_info'] = grade
                     break
-        
+
         current_session['submissions'] = submissions
         return jsonify({
             "assignment_type": "final_project",
             "grades": result.get('grades', [])
         })
-    
+
     else:
         # Standard grading
         for sub in submissions:
             if sub.get('code') and not sub.get('run_result'):
                 sub['run_result'] = run_python_code(sub['code'])
-        
+
         result = grade_with_claude(submissions, context)
-        
+
         if 'error' in result:
             return jsonify(result), 400
-        
+
         for grade in result.get('grades', []):
             for sub in submissions:
                 if (grade.get('filename') == sub.get('filename') or
                     grade.get('student_name', '').lower() in sub.get('student_name', '').lower()):
                     sub['grade_info'] = grade
                     break
-        
+
         current_session['submissions'] = submissions
         return jsonify({
             "assignment_type": "standard",
@@ -1907,40 +1915,40 @@ def grade_smart():
 def download_canvas_submissions(course_id, assignment_id):
     """Download all UNGRADED submissions from Canvas and extract them"""
     global current_session
-    
+
     # Get submissions with attachments
     url = f"{CANVAS_URL}/api/v1/courses/{course_id}/assignments/{assignment_id}/submissions"
     params = {
         "per_page": 100,
         "include[]": ["user", "submission_comments"]
     }
-    
+
     try:
         response = requests.get(url, headers=get_headers(), params=params)
         if response.status_code != 200:
             return jsonify({"error": f"Failed to fetch submissions: {response.status_code}"}), 400
-        
+
         submissions_data = response.json()
-        
+
         submissions = []
         skipped_graded = 0
         skipped_no_submission = 0
-        
+
         for sub in submissions_data:
             user = sub.get('user', {})
             user_id = sub.get('user_id')
             attachments = sub.get('attachments', [])
-            
+
             # Skip if already graded
             if sub.get('grade') is not None or sub.get('score') is not None:
                 skipped_graded += 1
                 continue
-            
+
             # Skip if no submission
             if sub.get('workflow_state') == 'unsubmitted' or not attachments:
                 skipped_no_submission += 1
                 continue
-            
+
             # Get user profile for email
             email = None
             login_id = user.get('login_id', '')
@@ -1953,7 +1961,7 @@ def download_canvas_submissions(course_id, assignment_id):
                     login_id = profile.get('login_id', login_id)
             except:
                 pass
-            
+
             # Download .py attachments
             for att in attachments:
                 filename = att.get('filename', '')
@@ -1964,7 +1972,7 @@ def download_canvas_submissions(course_id, assignment_id):
                             file_response = requests.get(file_url, headers=get_headers(), allow_redirects=True)
                             if file_response.status_code == 200:
                                 code = file_response.text
-                                
+
                                 submissions.append({
                                     "filename": filename,
                                     "student_name": user.get('name', 'Unknown'),
@@ -1977,18 +1985,18 @@ def download_canvas_submissions(course_id, assignment_id):
                                 })
                         except Exception as e:
                             print(f"Error downloading {filename}: {e}")
-        
+
         current_session['submissions'] = submissions
         current_session['course'] = course_id
         current_session['assignment'] = assignment_id
-        
+
         return jsonify({
             "count": len(submissions),
             "skipped_graded": skipped_graded,
             "skipped_no_submission": skipped_no_submission,
             "submissions": submissions
         })
-        
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -2042,7 +2050,7 @@ def api_assignment_detail(course_id, assignment_id):
 def api_canvas_students(course_id, assignment_id):
     """Get Canvas student list with all identifiers for debugging matching"""
     submissions = get_submissions_with_files(course_id, assignment_id)
-    
+
     students = []
     for sub in submissions:
         user = sub.get('user', {})
@@ -2056,7 +2064,7 @@ def api_canvas_students(course_id, assignment_id):
             "score": sub.get('score'),
             "graded": sub.get('grade') is not None
         })
-    
+
     return jsonify(students)
 
 
@@ -2064,13 +2072,13 @@ def api_canvas_students(course_id, assignment_id):
 def api_submissions(course_id, assignment_id):
     """Get submissions for an assignment"""
     submissions = get_submissions_with_files(course_id, assignment_id)
-    
+
     # Process submissions to extract code
     processed = []
     for sub in submissions:
         user = sub.get('user', {})
         attachments = sub.get('attachments', [])
-        
+
         # Get the first .py attachment
         code = None
         filename = None
@@ -2079,7 +2087,7 @@ def api_submissions(course_id, assignment_id):
                 filename = att['filename']
                 code = download_submission_file(att.get('url'))
                 break
-        
+
         processed.append({
             "user_id": sub.get('user_id'),
             "student_name": user.get('name', 'Unknown'),
@@ -2090,11 +2098,11 @@ def api_submissions(course_id, assignment_id):
             "grade": sub.get('grade'),
             "workflow_state": sub.get('workflow_state')
         })
-    
+
     current_session['submissions'] = processed
     current_session['course'] = course_id
     current_session['assignment'] = assignment_id
-    
+
     return jsonify(processed)
 
 
@@ -2103,18 +2111,18 @@ def upload_zip():
     """Upload and extract a ZIP file of submissions"""
     if 'file' not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
-    
+
     file = request.files['file']
     if not file.filename.endswith('.zip'):
         return jsonify({"error": "Please upload a .zip file"}), 400
-    
+
     submissions, temp_dir = extract_zip(file)
-    
+
     if not submissions:
         return jsonify({"error": "No .py files found in ZIP"}), 400
-    
+
     current_session['submissions'] = submissions
-    
+
     return jsonify({
         "count": len(submissions),
         "submissions": submissions
@@ -2126,7 +2134,7 @@ def run_code():
     """Run a piece of code and return output"""
     data = request.json
     code = data.get('code', '')
-    
+
     result = run_python_code(code)
     return jsonify(result)
 
@@ -2144,11 +2152,11 @@ def api_available_libraries():
 def run_all_submissions():
     """Run all current submissions"""
     submissions = current_session.get('submissions', [])
-    
+
     for sub in submissions:
         if sub.get('code'):
             sub['run_result'] = run_python_code(sub['code'])
-    
+
     current_session['submissions'] = submissions
     return jsonify({"status": "complete", "submissions": submissions})
 
@@ -2159,35 +2167,35 @@ def grade_submissions():
     data = request.json
     assignment_info = data.get('context', '')
     submissions = current_session.get('submissions', [])
-    
+
     if not submissions:
         return jsonify({"error": "No submissions loaded"}), 400
-    
+
     # Run code first if not already done
     for sub in submissions:
         if sub.get('code') and not sub.get('run_result'):
             sub['run_result'] = run_python_code(sub['code'])
-    
+
     # Grade with Claude
     result = grade_with_claude(submissions, assignment_info)
-    
+
     if 'error' in result:
         return jsonify(result), 400
-    
+
     current_session['grades'] = result.get('grades', [])
-    
+
     # Match grades back to submissions
     grades = result.get('grades', [])
     for grade in grades:
         for sub in submissions:
-            if (grade.get('filename') == sub.get('filename') or 
+            if (grade.get('filename') == sub.get('filename') or
                 grade.get('student_name', '').lower() in sub.get('student_name', '').lower() or
                 sub.get('student_name', '').lower() in grade.get('student_name', '').lower()):
                 sub['grade_info'] = grade
                 break
-    
+
     current_session['submissions'] = submissions
-    
+
     return jsonify(result)
 
 
@@ -2200,19 +2208,19 @@ def submit_single_grade():
     user_id = data.get('user_id')
     grade = data.get('grade')
     comment = data.get('comment', '')
-    
-    print(f"=== Submit Single Grade ===")
+
+    print("=== Submit Single Grade ===")
     print(f"Course: {course_id}, Assignment: {assignment_id}, User: {user_id}")
     print(f"Grade: {grade}, Comment: {comment[:50] if comment else 'None'}...")
     print(f"Canvas Token set: {bool(CANVAS_TOKEN)}")
-    
+
     if not all([course_id, assignment_id, user_id, grade is not None]):
         return jsonify({"error": f"Missing required fields: course={course_id}, assignment={assignment_id}, user={user_id}, grade={grade}"}), 400
-    
+
     success, response = submit_grade_to_canvas(course_id, assignment_id, user_id, grade, comment)
-    
+
     print(f"Result: success={success}, response={response[:100] if response else 'None'}...")
-    
+
     return jsonify({
         "success": success,
         "error": None if success else response
@@ -2226,29 +2234,29 @@ def submit_grades():
     course_id = data.get('course_id') or current_session.get('course')
     assignment_id = data.get('assignment_id') or current_session.get('assignment')
     grades = data.get('grades', [])
-    
-    print(f"\n=== Submit Grades ===")
+
+    print("\n=== Submit Grades ===")
     print(f"Course: {course_id}, Assignment: {assignment_id}")
     print(f"Grades to submit: {len(grades)}")
-    
+
     if not course_id or not assignment_id:
         return jsonify({"error": "Missing course_id or assignment_id"}), 400
-    
+
     if not grades:
         return jsonify({"error": "No grades to submit"}), 400
-    
+
     results = []
-    
+
     for grade_info in grades:
         student_name = grade_info.get('student_name', 'Unknown')
         filename = grade_info.get('filename', '')
         user_id = grade_info.get('user_id')  # Direct user_id if available
         grade = grade_info.get('grade')
         comment = grade_info.get('comment', '')
-        
+
         print(f"\n  Processing: {student_name} ({filename})")
         print(f"    user_id provided: {user_id}")
-        
+
         # If we have a direct user_id, use it
         if user_id:
             print(f"    Using provided user_id: {user_id}")
@@ -2264,30 +2272,30 @@ def submit_grades():
             canvas_submissions = get_submissions_with_files(course_id, assignment_id)
             matched_id = None
             matched_name = student_name
-            
+
             filename_lower = filename.lower()
             filename_parts = filename_lower.split('_')
             filename_username = filename_parts[0] if filename_parts else ''
             filename_id = filename_parts[1] if len(filename_parts) > 1 else ''
-            
+
             for sub in canvas_submissions:
                 user = sub.get('user', {})
                 sub_user_id = str(sub.get('user_id', ''))
                 login_id = user.get('login_id', '').lower().split('@')[0].replace('.', '').replace('_', '')
                 email = user.get('email', '').lower().split('@')[0].replace('.', '').replace('_', '')
-                
+
                 # Match by ID in filename
                 if filename_id and filename_id == sub_user_id:
                     matched_id = sub.get('user_id')
                     matched_name = user.get('name', student_name)
                     break
-                
+
                 # Match by email/login
                 if filename_username and (filename_username == email or filename_username == login_id):
                     matched_id = sub.get('user_id')
                     matched_name = user.get('name', student_name)
                     break
-            
+
             if matched_id:
                 print(f"    Matched to user_id: {matched_id}")
                 success, response = submit_grade_to_canvas(course_id, assignment_id, matched_id, grade, comment)
@@ -2298,17 +2306,17 @@ def submit_grades():
                     "error": None if success else response
                 })
             else:
-                print(f"    No match found")
+                print("    No match found")
                 results.append({
                     "student": student_name,
                     "grade": grade,
                     "success": False,
                     "error": "Could not match to Canvas student"
                 })
-    
+
     success_count = sum(1 for r in results if r['success'])
     print(f"\n  Results: {success_count}/{len(results)} successful")
-    
+
     return jsonify({
         "results": results,
         "summary": {

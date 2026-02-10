@@ -4,9 +4,10 @@ Renders Jinja2 templates with configuration and context variables
 """
 
 from pathlib import Path
-from jinja2 import Environment, FileSystemLoader, BaseLoader, TemplateNotFound
-from config import get_config
 
+from jinja2 import Environment, FileSystemLoader, TemplateNotFound
+
+from config import get_config
 
 # Find the prompts directory
 PROMPTS_DIRS = [

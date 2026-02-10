@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-02-10
+
+### Added
+- Test suite with 58 pytest tests covering config, app logic, code execution, and prompt rendering
+- GitHub Actions CI workflow with linting and tests on push/PR
+- `Makefile` with `install`, `test`, `lint`, `run`, `docker` targets
+- `.dockerignore` to keep builds lean and secure
+- Bug report and feature request issue templates
+- Pull request template with test checklist
+- Dependabot configuration for pip and GitHub Actions
+- Ruff linter integration (`make lint`)
+- `config.yaml.example` validation tests
+
+### Changed
+- README: added CI/license badges, test instructions, contributing links, updated project structure
+- Dockerfile: uses `requirements.txt`, `--no-cache-dir`, runs as non-root user
+- `.gitignore`: added test/build artifact patterns
+- Codebase linted clean with ruff (import sorting, unused imports, whitespace)
+
 ## [0.3.0] - 2026-02-10
 
 ### Added

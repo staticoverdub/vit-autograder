@@ -6,7 +6,6 @@ needed so no Flask app, Canvas API, or Anthropic key is required.
 
 import config as config_module
 
-
 # ── helpers to import app functions without triggering side-effects ──
 
 def _import_app_functions():
