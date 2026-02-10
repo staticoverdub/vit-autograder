@@ -5,22 +5,30 @@ WORKDIR /app
 # Unbuffered output for real-time logging
 ENV PYTHONUNBUFFERED=1
 
-# Install dependencies for the app
-RUN pip install flask anthropic requests PyYAML Jinja2
+# Install dependencies from requirements.txt (cached layer)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Install common libraries that student code might use
 # These are available when running student submissions
-RUN pip install openpyxl pandas numpy matplotlib
+RUN pip install --no-cache-dir openpyxl pandas numpy matplotlib
+
+# Create non-root user for security
+RUN useradd --create-home appuser
 
 # Copy app files
 COPY app.py .
 COPY config.py .
 COPY prompt_loader.py .
 COPY templates/ templates/
-COPY prompts/ prompts/
+
+# Create writable directories owned by appuser
+RUN mkdir -p uploads data && chown -R appuser:appuser /app
+
+USER appuser
 
 # Expose port
 EXPOSE 5000
 
-# Run the app with unbuffered output
+# Run the app
 CMD ["python", "-u", "app.py"]
