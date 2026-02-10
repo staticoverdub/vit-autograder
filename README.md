@@ -49,7 +49,7 @@ course:
 
 ### 2. Set Up API Keys
 
-Create a `.env` file with your API credentials:
+Create a `.env` file with your API credentials (Or just use the settings menu!) :
 
 ```bash
 cp .env.example .env
