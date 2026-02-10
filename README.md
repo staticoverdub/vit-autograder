@@ -1,5 +1,8 @@
 # AutoGrader
 
+[![Tests](https://github.com/staticoverdub/vit-autograder/actions/workflows/test.yml/badge.svg)](https://github.com/staticoverdub/vit-autograder/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 An AI-powered, configurable tool to automatically grade Python assignments and submit grades to Canvas LMS.
 
 ## Features
@@ -215,15 +218,21 @@ messages:
 
 ## Development
 
+### Running Tests
+
+```bash
+pip install -r requirements.txt
+pytest tests/ -v
+```
+
 ### Project Structure
 
 ```
-autograder/
+vit-autograder/
 ├── app.py              # Main Flask application
 ├── config.py           # Configuration loader
 ├── prompt_loader.py    # Jinja2 template renderer
 ├── config.yaml         # Your configuration (not in git)
-├── config.yaml.example # Example configuration
 ├── prompts/            # Jinja2 prompt templates
 │   ├── grading_standard.j2
 │   ├── grading_final_project.j2
@@ -232,22 +241,23 @@ autograder/
 │   └── reminder_message.j2
 ├── templates/
 │   └── index.html      # Web UI
+├── tests/              # Test suite
+│   ├── conftest.py
+│   ├── test_config.py
+│   ├── test_app_logic.py
+│   └── test_code_execution.py
 ├── .env                # API keys (not in git)
 ├── .env.example        # Example env file
 ├── docker-compose.yml
 └── requirements.txt
 ```
 
-### Dependencies
-
-- Flask
-- Anthropic (Claude API)
-- PyYAML
-- Jinja2 (included with Flask)
-- requests
-
 ---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow, coding standards, and how to submit pull requests.
 
 ## License
 
-MIT License
+[MIT License](LICENSE)
