@@ -6,7 +6,6 @@ A configurable tool to grade Python assignments and submit to Canvas LMS
 import json
 import os
 import re
-import subprocess
 import tempfile
 import zipfile
 from datetime import datetime
@@ -16,6 +15,8 @@ import requests
 from anthropic import Anthropic
 from flask import Flask, jsonify, render_template, request
 
+from code_runner import run_python_code
+
 # Import configuration
 from config import (
     get_available_libraries,
@@ -23,7 +24,6 @@ from config import (
     get_checkoff_patterns,
     get_config,
     get_course_name,
-    get_default_inputs,
     get_default_points,
     get_final_project_patterns,
     get_grading_model,
@@ -32,7 +32,6 @@ from config import (
     get_org_tagline,
     get_org_website,
     get_rubric_page_map,
-    get_timeout_seconds,
 )
 from prompt_loader import (
     render_celebration_message,
@@ -233,60 +232,6 @@ def submit_grade_to_canvas(course_id, assignment_id, student_id, grade, comment)
         return response.status_code == 200, response.text
     except Exception as e:
         return False, str(e)
-
-
-# ============== CODE EXECUTION ==============
-
-def run_python_code(code, timeout=None):
-    """Safely run Python code and capture output"""
-    if timeout is None:
-        timeout = get_timeout_seconds()
-
-    # Create a temporary file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-        f.write(code)
-        temp_file = f.name
-
-    try:
-        # Run with timeout, provide input for input() calls
-        result = subprocess.run(
-            ['python3', temp_file],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            input=get_default_inputs()  # Default inputs for interactive programs
-        )
-
-        output = result.stdout
-        errors = result.stderr
-
-        # Clean up ANSI codes if any
-        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-        output = ansi_escape.sub('', output)
-        errors = ansi_escape.sub('', errors)
-
-        return {
-            "success": result.returncode == 0,
-            "output": output[:2000] if output else "(no output)",
-            "errors": errors[:1000] if errors else None,
-            "returncode": result.returncode
-        }
-    except subprocess.TimeoutExpired:
-        return {
-            "success": False,
-            "output": "",
-            "errors": f"⏱️ Code timed out (took longer than {timeout} seconds)",
-            "returncode": -1
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "output": "",
-            "errors": f"Error running code: {str(e)}",
-            "returncode": -1
-        }
-    finally:
-        os.unlink(temp_file)
 
 
 # ============== AI GRADING ==============

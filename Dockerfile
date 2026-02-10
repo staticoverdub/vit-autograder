@@ -19,6 +19,7 @@ RUN useradd --create-home appuser
 # Copy app files
 COPY app.py .
 COPY config.py .
+COPY code_runner.py .
 COPY prompt_loader.py .
 COPY templates/ templates/
 

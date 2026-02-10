@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-02-10
+
+### Added
+- Docker image build verification in CI
+- Screenshot placeholder in README for project discovery
+
+### Changed
+- Extracted `code_runner.py` module from app.py (sandboxed code execution)
+- app.py reduced by ~50 lines; cleaner separation of concerns
+- Updated project structure in README
+
+### Fixed
+- Missing `get_org_website` import causing runtime crash on `/api/config`
+- Module-level `config` variable shadowing Flask route function
+- 5 bare `except` clauses replaced with specific exception types
+- Removed dead code (`assignment_map`, `assignment_scores_active` pass-only loop)
+- Removed unused `subprocess` import from app.py
+
 ## [0.4.0] - 2026-02-10
 
 ### Added

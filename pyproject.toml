@@ -12,4 +12,4 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["config", "prompt_loader"]
+known-first-party = ["config", "code_runner", "prompt_loader"]

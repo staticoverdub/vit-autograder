@@ -5,6 +5,12 @@
 
 An AI-powered, configurable tool to automatically grade Python assignments and submit grades to Canvas LMS.
 
+<p align="center">
+  <img src="docs/screenshot.png" alt="AutoGrader UI" width="800">
+</p>
+
+> **Note:** Replace `docs/screenshot.png` with an actual screenshot of the running app. Run the app locally and capture the Browse Canvas or Review & Grade view.
+
 ## Features
 
 - **Canvas Integration**: Browse courses, download submissions, submit grades
@@ -221,8 +227,9 @@ messages:
 ### Running Tests
 
 ```bash
-pip install -r requirements.txt
-pytest tests/ -v
+make install
+make test
+make lint
 ```
 
 ### Project Structure
@@ -231,7 +238,8 @@ pytest tests/ -v
 vit-autograder/
 ├── app.py              # Main Flask application
 ├── config.py           # Configuration loader
-├── prompt_loader.py    # Jinja2 template renderer
+├── code_runner.py      # Sandboxed Python code execution
+├── prompt_loader.py    # Jinja2 prompt template renderer
 ├── config.yaml         # Your configuration (not in git)
 ├── prompts/            # Jinja2 prompt templates
 │   ├── grading_standard.j2
@@ -245,9 +253,11 @@ vit-autograder/
 │   ├── conftest.py
 │   ├── test_config.py
 │   ├── test_app_logic.py
-│   └── test_code_execution.py
+│   ├── test_code_execution.py
+│   └── test_prompt_loader.py
 ├── .env                # API keys (not in git)
 ├── .env.example        # Example env file
+├── Makefile            # Development commands
 ├── docker-compose.yml
 └── requirements.txt
 ```

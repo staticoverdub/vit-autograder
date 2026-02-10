@@ -26,3 +26,12 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -v
+
+  docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build Docker image
+        run: docker build -t autograder .
