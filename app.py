@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import zipfile
 from datetime import datetime
+from pathlib import Path
 
 import requests
 from anthropic import Anthropic
@@ -29,6 +30,7 @@ from config import (
     get_instructor_name,
     get_org_name,
     get_org_tagline,
+    get_org_website,
     get_rubric_page_map,
     get_timeout_seconds,
 )
@@ -74,7 +76,7 @@ def load_env_file():
 load_env_file()
 
 # Load configuration from config.yaml (with defaults and env overrides)
-config = get_config()
+app_config = get_config()
 
 # API credentials from environment (secrets stay in .env)
 CANVAS_URL = get_canvas_url()
@@ -365,7 +367,7 @@ def extract_zip(zip_file):
                 try:
                     with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                         code = f.read()
-                except:
+                except Exception:
                     code = "# Could not read file"
 
                 # Extract student name from filename
@@ -482,8 +484,6 @@ def api_assignments(course_id):
     return jsonify(assignments)
 
 
-from pathlib import Path
-
 # Track who received celebration/reminder messages
 CELEBRATED_FILE = Path("/app/data/celebrated_students.json")
 REMINDED_FILE = Path("/app/data/reminded_students.json")
@@ -498,7 +498,7 @@ def get_celebrated_students():
     if CELEBRATED_FILE.exists() and CELEBRATED_FILE.is_file():
         try:
             return json.loads(CELEBRATED_FILE.read_text())
-        except:
+        except (json.JSONDecodeError, OSError):
             return {}
     return {}
 
@@ -546,7 +546,7 @@ def get_reminded_students():
     if REMINDED_FILE.exists() and REMINDED_FILE.is_file():
         try:
             return json.loads(REMINDED_FILE.read_text())
-        except:
+        except (json.JSONDecodeError, OSError):
             return {}
     return {}
 
@@ -567,7 +567,7 @@ def has_been_reminded_recently(course_id, user_id, days=7):
     try:
         reminded_date = datetime.fromisoformat(reminded[key])
         return (datetime.now() - reminded_date).days < days
-    except:
+    except (ValueError, KeyError, TypeError):
         return False
 
 
@@ -782,8 +782,7 @@ def student_dashboard(course_id):
         assignments_response = requests.get(assignments_url, headers=get_headers(), params={"per_page": 100, "order_by": "due_at"})
         all_assignments = assignments_response.json() if assignments_response.status_code == 200 else []
 
-        # Build assignment map with order preserved
-        assignment_map = {a['id']: a['name'] for a in all_assignments}
+        # Build assignment order list
         assignment_order = [a['id'] for a in all_assignments]  # Preserve original order
         total_assignments = len(all_assignments)
 
@@ -909,19 +908,6 @@ def student_dashboard(course_id):
             for aid in assignment_completion_active:
                 # Scores were tracked in the original loop, copy them over
                 pass
-
-        # Copy scores from original assignment_completion (which tracked all students)
-        # But we want to recalculate for active only - we need to re-examine
-        # Actually, let's track scores properly during the active student filtering
-        assignment_scores_active = {a['id']: [] for a in all_assignments}
-        for s in active_students:
-            for aid in s.get('graded_assignment_ids', []):
-                # We stored the assignment_id but not the score in student data
-                # The scores are in assignment_completion from ALL students
-                pass
-
-        # For now, use scores from all students who submitted (close enough for insights)
-        # This is a reasonable proxy since we're measuring assignment difficulty
 
         # Assignment completion stats - PRESERVE ORDER by due_at/position
         assignment_stats = []
@@ -1959,7 +1945,7 @@ def download_canvas_submissions(course_id, assignment_id):
                     profile = profile_res.json()
                     email = profile.get('primary_email', profile.get('login_id', ''))
                     login_id = profile.get('login_id', login_id)
-            except:
+            except Exception:
                 pass
 
             # Download .py attachments
