@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-02-10
+
+### Security
+- XSS: escape all user-controlled data (student names, course names, filenames) in HTML templates via `escapeHtml()`
+- Default to `127.0.0.1` binding (not `0.0.0.0`); Docker sets `HOST=0.0.0.0` explicitly
+- `debug=True` removed; controlled via `FLASK_DEBUG` env var (defaults to false)
+- Zip slip protection: validate all zip entries stay within target directory
+- Temp directory cleanup after zip extraction
+- Removed `filepath` from API responses (information disclosure)
+- Config endpoint made read-only; removed POST handler for credential updates
+- Settings modal is now read-only (credentials managed via `.env` only)
+- HTML-escape inline reminder messages to prevent stored XSS
+- Added security headers: `X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `Referrer-Policy`
+- `SECRET_KEY` loaded from env var (randomized fallback)
+- Subprocess runs with stripped environment (`_SAFE_ENV`) to prevent secret leakage
+
 ## [1.0.0] - 2026-02-10
 
 ### Added

@@ -564,20 +564,20 @@
             <div class="space-y-5">
                 <div>
                     <label class="block text-sm font-medium mb-2 text-gray-300">Canvas URL</label>
-                    <input type="text" id="settings-canvas-url" placeholder="https://school.instructure.com" class="w-full bg-black/30 border border-white/10 rounded-xl p-4 focus:outline-none">
+                    <input type="text" id="settings-canvas-url" disabled class="w-full bg-black/30 border border-white/10 rounded-xl p-4 text-gray-400">
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-2 text-gray-300">Canvas API Token</label>
-                    <input type="password" id="settings-canvas-token" placeholder="Enter token" class="w-full bg-black/30 border border-white/10 rounded-xl p-4 focus:outline-none">
+                    <div id="settings-canvas-token-status" class="text-sm text-gray-400 p-4 bg-black/30 border border-white/10 rounded-xl"></div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-2 text-gray-300">Anthropic API Key</label>
-                    <input type="password" id="settings-anthropic-key" placeholder="Enter key" class="w-full bg-black/30 border border-white/10 rounded-xl p-4 focus:outline-none">
+                    <div id="settings-anthropic-key-status" class="text-sm text-gray-400 p-4 bg-black/30 border border-white/10 rounded-xl"></div>
                 </div>
+                <p class="text-xs text-gray-500 mt-2">Credentials are configured via .env file and config.yaml</p>
             </div>
             <div class="flex gap-3 mt-8">
-                <button onclick="closeSettings()" class="flex-1 px-4 py-3 rounded-xl border border-white/10 hover:bg-white/5">Cancel</button>
-                <button onclick="saveSettings()" class="flex-1 btn-primary text-white px-4 py-3 rounded-xl font-medium">Save</button>
+                <button onclick="closeSettings()" class="flex-1 px-4 py-3 rounded-xl border border-white/10 hover:bg-white/5">Close</button>
             </div>
         </div>
     </div>
@@ -695,25 +695,9 @@
                 const res = await fetch('/api/config');
                 const cfg = await res.json();
                 document.getElementById('settings-canvas-url').value = cfg.canvas_url || '';
-                document.getElementById('settings-canvas-token').value = cfg.has_token ? '••••••••' : '';
-                document.getElementById('settings-anthropic-key').value = cfg.has_anthropic ? '••••••••' : '';
+                document.getElementById('settings-canvas-token-status').textContent = cfg.has_token ? 'Configured' : 'Not set — add CANVAS_TOKEN to .env';
+                document.getElementById('settings-anthropic-key-status').textContent = cfg.has_anthropic ? 'Configured' : 'Not set — add ANTHROPIC_API_KEY to .env';
             } catch(e) {}
-        }
-        
-        async function saveSettings() {
-            const url = document.getElementById('settings-canvas-url').value;
-            const token = document.getElementById('settings-canvas-token').value;
-            const key = document.getElementById('settings-anthropic-key').value;
-            try {
-                await fetch('/api/config', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ canvas_url: url || undefined, canvas_token: token.includes('•') ? undefined : token, anthropic_key: key.includes('•') ? undefined : key })
-                });
-                closeSettings();
-                showToast('Settings saved!', 'success');
-                loadCourses();
-            } catch(e) { showToast('Error saving', 'error'); }
         }
         
         // Canvas Integration
@@ -725,7 +709,7 @@
                 if (courses.length === 0) { list.innerHTML = '<p class="text-gray-500 text-center py-4">No courses found</p>'; return; }
                 
                 // Show courses immediately
-                list.innerHTML = courses.map(c => `<button onclick="selectCourse(${c.id}, '${c.name.replace(/'/g, "\\'")}')" class="w-full text-left p-3 rounded-xl hover:bg-white/5 transition flex items-center gap-3 group" id="course-btn-${c.id}"><span class="text-xl">📘</span><span class="text-sm text-gray-300 group-hover:text-white truncate flex-1">${c.name}</span><span class="text-xs text-gray-500" id="course-count-${c.id}">...</span></button>`).join('');
+                list.innerHTML = courses.map(c => `<button onclick="selectCourse(${c.id}, '${escapeHtml(c.name).replace(/'/g, "&#39;")}')" class="w-full text-left p-3 rounded-xl hover:bg-white/5 transition flex items-center gap-3 group" id="course-btn-${c.id}"><span class="text-xl">📘</span><span class="text-sm text-gray-300 group-hover:text-white truncate flex-1">${escapeHtml(c.name)}</span><span class="text-xs text-gray-500" id="course-count-${c.id}">...</span></button>`).join('');
                 
                 // Fetch grading counts for each course in background
                 for (const c of courses) {
@@ -779,7 +763,7 @@
                     const badge = needsGrading > 0 
                         ? `<span class="px-2 py-1 bg-yellow-500/20 text-yellow-400 text-xs font-bold rounded-lg">${needsGrading}</span>`
                         : `<span class="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-lg">✓</span>`;
-                    return `<button onclick="selectAssignment(${a.id}, '${a.name.replace(/'/g, "\\'")}', ${points})" class="w-full text-left p-3 rounded-xl hover:bg-white/5 transition flex items-center gap-3 group"><span class="text-lg">📄</span><span class="text-sm text-gray-300 group-hover:text-white truncate flex-1">${a.name}</span><span class="text-xs text-gray-500">${points}pts</span>${badge}</button>`;
+                    return `<button onclick="selectAssignment(${a.id}, '${escapeHtml(a.name).replace(/'/g, "&#39;")}', ${points})" class="w-full text-left p-3 rounded-xl hover:bg-white/5 transition flex items-center gap-3 group"><span class="text-lg">📄</span><span class="text-sm text-gray-300 group-hover:text-white truncate flex-1">${escapeHtml(a.name)}</span><span class="text-xs text-gray-500">${points}pts</span>${badge}</button>`;
                 }).join('');
                 
                 document.getElementById('assignments-list').innerHTML = html;
@@ -792,7 +776,7 @@
             document.getElementById('submit-course-id').value = selectedCourse.id;
             document.getElementById('submit-assignment-id').value = id;
             document.getElementById('assignment-summary').classList.remove('hidden');
-            document.getElementById('assignment-info').innerHTML = `<p class="text-sm"><span class="text-gray-500">Course:</span> ${selectedCourse.name}</p><p class="text-sm mt-1"><span class="text-gray-500">Assignment:</span> ${name} <span class="text-gray-400">(${pointsPossible} points)</span></p>`;
+            document.getElementById('assignment-info').innerHTML = `<p class="text-sm"><span class="text-gray-500">Course:</span> ${escapeHtml(selectedCourse.name)}</p><p class="text-sm mt-1"><span class="text-gray-500">Assignment:</span> ${escapeHtml(name)} <span class="text-gray-400">(${pointsPossible} points)</span></p>`;
             
             // Update grade slider max
             const slider = document.getElementById('grade-slider');
@@ -820,7 +804,7 @@
                     if (s.graded) { status = `✅ ${s.score||'Graded'}`; cls = 'text-green-400'; }
                     else if (s.has_submission) { status = '📝 Needs grading'; cls = 'text-yellow-400'; }
                     else { status = '⏳ No submission'; cls = 'text-gray-500'; }
-                    return `<tr class="border-b border-white/5"><td class="py-2 text-gray-300">${s.name}</td><td class="py-2 ${cls}">${status}</td></tr>`;
+                    return `<tr class="border-b border-white/5"><td class="py-2 text-gray-300">${escapeHtml(s.name)}</td><td class="py-2 ${cls}">${status}</td></tr>`;
                 }).join('')}</tbody></table><div class="mt-3 pt-3 border-t border-white/5 text-xs text-gray-500">${canvasStudents.filter(s=>s.graded).length} graded • ${canvasStudents.filter(s=>s.has_submission&&!s.graded).length} needs grading</div>`;
                 populateCanvasUserDropdown();
             } catch(e) {}
@@ -877,7 +861,7 @@
                 const grade = sub.grade_info?.grade;
                 const hasGrade = grade !== undefined;
                 const cls = hasGrade ? (grade >= 9 ? 'excellent' : grade >= 7 ? 'good' : 'needs-work') : '';
-                return `<div onclick="selectStudent(${idx})" class="student-card p-3 rounded-xl cursor-pointer flex items-center gap-3 ${idx === selectedStudentIndex ? 'selected' : ''}">${hasGrade ? `<div class="grade-badge ${cls} text-sm">${grade}</div>` : `<div class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-gray-500">?</div>`}<div class="flex-1 min-w-0"><p class="font-medium text-white truncate">${sub.student_name}</p><p class="text-xs text-gray-500 mono truncate">${sub.filename}</p></div></div>`;
+                return `<div onclick="selectStudent(${idx})" class="student-card p-3 rounded-xl cursor-pointer flex items-center gap-3 ${idx === selectedStudentIndex ? 'selected' : ''}">${hasGrade ? `<div class="grade-badge ${cls} text-sm">${grade}</div>` : `<div class="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-gray-500">?</div>`}<div class="flex-1 min-w-0"><p class="font-medium text-white truncate">${escapeHtml(sub.student_name)}</p><p class="text-xs text-gray-500 mono truncate">${escapeHtml(sub.filename)}</p></div></div>`;
             }).join('');
             updateGradeStats();
         }
@@ -943,7 +927,7 @@
                 sub.run_result = result;
                 document.getElementById('code-output').innerHTML = `<span class="text-green-400">${escapeHtml(result.output || '')}</span>${result.errors ? `<span class="text-red-400">\n${escapeHtml(result.errors)}</span>` : ''}`;
                 if (result.success) playSound('success');
-            } catch(e) { document.getElementById('code-output').innerHTML = `<span class="text-red-400">Error: ${e.message}</span>`; }
+            } catch(e) { document.getElementById('code-output').innerHTML = `<span class="text-red-400">Error: ${escapeHtml(e.message)}</span>`; }
         }
         
         async function gradeCurrentStudent() {
@@ -1055,7 +1039,7 @@
         // Canvas Submit
         function populateCanvasUserDropdown() {
             const sel = document.getElementById('canvas-user-select');
-            sel.innerHTML = '<option value="">Select...</option>' + canvasStudents.map(s => `<option value="${s.user_id}">${s.name}</option>`).join('');
+            sel.innerHTML = '<option value="">Select...</option>' + canvasStudents.map(s => `<option value="${s.user_id}">${escapeHtml(s.name)}</option>`).join('');
             if (selectedStudentIndex >= 0 && currentSubmissions[selectedStudentIndex]) {
                 const sub = currentSubmissions[selectedStudentIndex];
                 const match = canvasStudents.find(s => s.user_id === sub.user_id);
@@ -1096,7 +1080,7 @@
             if (!container) return;
             const graded = currentSubmissions.filter(s => s.grade_info?.grade !== undefined);
             if (graded.length === 0) { container.innerHTML = '<p class="text-gray-500 text-center py-4">No grades pending</p>'; return; }
-            container.innerHTML = graded.map(s => `<div class="flex items-center justify-between py-2 border-b border-white/5 last:border-0"><span class="truncate flex-1 text-gray-300">${s.student_name}</span><span class="ml-2 px-2 py-1 rounded-lg text-xs font-bold ${s.grade_info.grade >= 9 ? 'bg-green-500/20 text-green-400' : s.grade_info.grade >= 7 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}">${s.grade_info.grade}/10</span></div>`).join('');
+            container.innerHTML = graded.map(s => `<div class="flex items-center justify-between py-2 border-b border-white/5 last:border-0"><span class="truncate flex-1 text-gray-300">${escapeHtml(s.student_name)}</span><span class="ml-2 px-2 py-1 rounded-lg text-xs font-bold ${s.grade_info.grade >= 9 ? 'bg-green-500/20 text-green-400' : s.grade_info.grade >= 7 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}">${s.grade_info.grade}/10</span></div>`).join('');
         }
         
         function refreshSubmitPanel() { updateSessionStatus(); updatePendingGradesList(); document.getElementById('submit-results').classList.add('hidden'); showToast(`🔄 ${currentSubmissions.filter(s => s.grade_info?.grade !== undefined).length} grades ready`, 'info'); }
@@ -1115,7 +1099,7 @@
                 hideLoading();
                 if (data.error) { showToast('Error: ' + data.error, 'error'); return; }
                 document.getElementById('submit-results').classList.remove('hidden');
-                document.getElementById('results-list').innerHTML = (data.results || []).map(r => `<div class="flex items-center gap-3 p-3 rounded-xl ${r.success ? 'bg-green-500/10 border border-green-500/20' : 'bg-red-500/10 border border-red-500/20'}"><span class="text-xl">${r.success ? '✅' : '❌'}</span><span class="flex-1 text-gray-300">${r.student}</span><span class="mono font-bold ${r.success ? 'text-green-400' : 'text-red-400'}">${r.grade}/10</span></div>`).join('');
+                document.getElementById('results-list').innerHTML = (data.results || []).map(r => `<div class="flex items-center gap-3 p-3 rounded-xl ${r.success ? 'bg-green-500/10 border border-green-500/20' : 'bg-red-500/10 border border-red-500/20'}"><span class="text-xl">${r.success ? '✅' : '❌'}</span><span class="flex-1 text-gray-300">${escapeHtml(r.student)}</span><span class="mono font-bold ${r.success ? 'text-green-400' : 'text-red-400'}">${r.grade}/10</span></div>`).join('');
                 const success = data.results?.filter(r => r.success).length || 0;
                 if (success > 0) { playSound('complete'); createConfetti(); }
                 showToast(`Submitted ${success}/${grades.length}!`, success > 0 ? 'success' : 'error');
@@ -1129,7 +1113,7 @@
             try {
                 const res = await fetch('/api/courses');
                 const courses = await res.json();
-                document.getElementById('dashboard-course-select').innerHTML = '<option value="">Select a course...</option>' + courses.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+                document.getElementById('dashboard-course-select').innerHTML = '<option value="">Select a course...</option>' + courses.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
             } catch(e) {}
         }
         
@@ -1207,11 +1191,11 @@
                 
                 // Truncate long names
                 const shortName = a.name.length > 25 ? a.name.substring(0, 22) + '...' : a.name;
-                
+
                 return `<div class="flex items-center gap-3 p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
                     <div class="w-8 text-xs text-gray-500 text-right">${idx + 1}.</div>
                     <div class="flex-1 min-w-0">
-                        <div class="text-sm text-white truncate mb-1" title="${a.name}">${shortName}</div>
+                        <div class="text-sm text-white truncate mb-1" title="${escapeHtml(a.name)}">${escapeHtml(shortName)}</div>
                         <div class="flex gap-1 h-4">
                             <div class="flex-1 bg-black/30 rounded-full overflow-hidden" title="Completion: ${Math.round(rate)}%">
                                 <div class="h-full rounded-full transition-all" style="width: ${rate}%; background: ${compColor}"></div>
@@ -1239,7 +1223,7 @@
                     const icon = i.severity === 'danger' ? '🔴' : '🟡';
                     return `<div class="flex items-start gap-2">
                         <span>${icon}</span>
-                        <span class="text-gray-300">${i.message}</span>
+                        <span class="text-gray-300">${escapeHtml(i.message)}</span>
                     </div>`;
                 }).join('');
             } else {
@@ -1303,8 +1287,8 @@
                 
                 const gradeColor = avgGrade >= 9 ? '#10b981' : avgGrade >= 7 ? '#f59e0b' : '#9ca3af';
                 
-                return `<tr class="student-row" data-name="${name.toLowerCase()}" data-progress="${progressPercent}" data-grade="${avgGrade}">
-                    <td class="py-3"><span class="text-white font-medium">${name}</span></td>
+                return `<tr class="student-row" data-name="${escapeHtml(name.toLowerCase())}" data-progress="${progressPercent}" data-grade="${avgGrade}">
+                    <td class="py-3"><span class="text-white font-medium">${escapeHtml(name)}</span></td>
                     <td class="py-3"><div class="flex items-center gap-2">${progressBar}<span class="text-xs text-gray-400">${completed}/${total}</span></div></td>
                     <td class="py-3"><span class="font-medium" style="color: ${gradeColor}">${avgGrade > 0 ? avgGrade.toFixed(1) : '-'}</span></td>
                     <td class="py-3" ${missingTooltip}>${missingText}</td>

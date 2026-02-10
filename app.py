@@ -3,9 +3,11 @@ AutoGrader - AI-Powered Assignment Grading
 A configurable tool to grade Python assignments and submit to Canvas LMS
 """
 
+import html as html_mod
 import json
 import os
 import re
+import shutil
 import tempfile
 import zipfile
 from datetime import datetime
@@ -42,7 +44,16 @@ from prompt_loader import (
 )
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
+
+
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    return response
 
 # Load .env file from parent directory or current directory
 def load_env_file():
@@ -302,6 +313,12 @@ def extract_zip(zip_file):
     temp_dir = tempfile.mkdtemp()
 
     with zipfile.ZipFile(zip_file, 'r') as z:
+        # Validate all paths before extraction (prevent Zip Slip)
+        for member in z.namelist():
+            target_path = os.path.realpath(os.path.join(temp_dir, member))
+            if not target_path.startswith(os.path.realpath(temp_dir)):
+                shutil.rmtree(temp_dir)
+                raise ValueError(f"Zip entry would escape target directory: {member}")
         z.extractall(temp_dir)
 
     submissions = []
@@ -322,13 +339,15 @@ def extract_zip(zip_file):
 
                 submissions.append({
                     "filename": file,
-                    "filepath": filepath,
                     "student_name": student_name,
                     "code": code,
                     "run_result": None
                 })
 
-    return submissions, temp_dir
+    # Clean up temp directory after extracting code content
+    shutil.rmtree(temp_dir, ignore_errors=True)
+
+    return submissions
 
 
 # ============== ROUTES ==============
@@ -342,23 +361,9 @@ def index():
     )
 
 
-@app.route('/api/config', methods=['GET', 'POST'])
+@app.route('/api/config', methods=['GET'])
 def config():
-    """Get or set configuration"""
-    global CANVAS_URL, CANVAS_TOKEN, ANTHROPIC_API_KEY
-
-    if request.method == 'POST':
-        data = request.json
-
-        if data.get('canvas_url'):
-            CANVAS_URL = data['canvas_url']
-        if data.get('canvas_token'):
-            CANVAS_TOKEN = data['canvas_token']
-        if data.get('anthropic_key'):
-            ANTHROPIC_API_KEY = data['anthropic_key']
-
-        return jsonify({"status": "updated"})
-
+    """Get configuration status (read-only; credentials are set via .env)"""
     return jsonify({
         "canvas_url": CANVAS_URL,
         "has_canvas_token": bool(CANVAS_TOKEN),
@@ -1269,27 +1274,33 @@ def preview_reminder(course_id, user_id):
     course_response = requests.get(course_url, headers=get_headers())
     course_name = course_response.json().get('name', 'the course') if course_response.status_code == 200 else 'the course'
 
+    safe_first = html_mod.escape(first_name)
+    safe_course = html_mod.escape(course_name)
+    missing_items = ''.join(
+        f'<li style="margin: 8px 0;"><strong>{html_mod.escape(a)}</strong></li>'
+        for a in missing
+    )
     html_message = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #6366f1;">📚 Friendly Reminder from {course_name}</h2>
+        <h2 style="color: #6366f1;">Friendly Reminder from {safe_course}</h2>
 
-        <p>Hi {first_name}!</p>
+        <p>Hi {safe_first}!</p>
 
-        <p>You're making great progress in <strong>{course_name}</strong>! 🌟</p>
+        <p>You're making great progress in <strong>{safe_course}</strong>!</p>
 
         <p>We noticed you still have a few assignments to complete:</p>
 
         <ul style="background: #f3f4f6; padding: 20px 40px; border-radius: 8px; margin: 20px 0;">
-            {''.join(f'<li style="margin: 8px 0;"><strong>{a}</strong></li>' for a in missing)}
+            {missing_items}
         </ul>
 
-        <p>Please try to submit these within the <strong>next week</strong> so you can complete the course and receive your certificate! 🎓</p>
+        <p>Please try to submit these within the <strong>next week</strong> so you can complete the course and receive your certificate!</p>
 
         <p>If you have any questions or need help, don't hesitate to reach out. We're here to support you!</p>
 
-        <p style="margin-top: 30px;">Keep up the great work! 💪</p>
+        <p style="margin-top: 30px;">Keep up the great work!</p>
 
-        <p style="color: #6b7280;">— Your {course_name} Instructor</p>
+        <p style="color: #6b7280;">— Your {safe_course} Instructor</p>
     </div>
     """
 
@@ -2047,7 +2058,10 @@ def upload_zip():
     if not file.filename.endswith('.zip'):
         return jsonify({"error": "Please upload a .zip file"}), 400
 
-    submissions, temp_dir = extract_zip(file)
+    try:
+        submissions = extract_zip(file)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
 
     if not submissions:
         return jsonify({"error": "No .py files found in ZIP"}), 400
@@ -2259,4 +2273,8 @@ def submit_grades():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(
+        host=os.environ.get('HOST', '127.0.0.1'),
+        port=int(os.environ.get('PORT', 5000)),
+        debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+    )

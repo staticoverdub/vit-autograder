@@ -1,6 +1,7 @@
 """
 Sandboxed Python code execution for AutoGrader.
 Runs student code in a subprocess with timeout and input injection.
+Environment variables are stripped to prevent secret leakage.
 """
 
 import os
@@ -9,6 +10,13 @@ import subprocess
 import tempfile
 
 from config import get_default_inputs, get_timeout_seconds
+
+# Minimal environment for student code — no secrets, no API keys
+_SAFE_ENV = {
+    "PATH": "/usr/local/bin:/usr/bin:/bin",
+    "HOME": "/tmp",
+    "LANG": "en_US.UTF-8",
+}
 
 
 def run_python_code(code, timeout=None):
@@ -23,12 +31,14 @@ def run_python_code(code, timeout=None):
 
     try:
         # Run with timeout, provide input for input() calls
+        # Use a clean environment to prevent secret leakage
         result = subprocess.run(
             ['python3', temp_file],
             capture_output=True,
             text=True,
             timeout=timeout,
-            input=get_default_inputs()  # Default inputs for interactive programs
+            input=get_default_inputs(),
+            env=_SAFE_ENV,
         )
 
         output = result.stdout

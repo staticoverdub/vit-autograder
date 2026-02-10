@@ -4,6 +4,8 @@ WORKDIR /app
 
 # Unbuffered output for real-time logging
 ENV PYTHONUNBUFFERED=1
+# Bind to all interfaces inside container (safe behind Docker network)
+ENV HOST=0.0.0.0
 
 # Install dependencies from requirements.txt (cached layer)
 COPY requirements.txt .
