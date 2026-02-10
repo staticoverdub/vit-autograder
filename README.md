@@ -1,15 +1,19 @@
 # AutoGrader
 
-[![Tests](https://github.com/staticoverdub/vit-autograder/actions/workflows/test.yml/badge.svg)](https://github.com/staticoverdub/vit-autograder/actions/workflows/test.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+<p align="center">
+  <img src="docs/banner.png" alt="AutoGrader" width="800">
+</p>
+
+<p align="center">
+  <a href="https://github.com/staticoverdub/vit-autograder/actions/workflows/test.yml"><img src="https://github.com/staticoverdub/vit-autograder/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+</p>
 
 An AI-powered, configurable tool to automatically grade Python assignments and submit grades to Canvas LMS.
 
 <p align="center">
   <img src="docs/screenshot.png" alt="AutoGrader UI" width="800">
 </p>
-
-> **Note:** Replace `docs/screenshot.png` with an actual screenshot of the running app. Run the app locally and capture the Browse Canvas or Review & Grade view.
 
 ## Features
 
