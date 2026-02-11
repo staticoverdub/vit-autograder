@@ -252,7 +252,8 @@
                                     <button onclick="skipCurrentSubmission()" class="px-3 py-2 text-gray-400 hover:text-yellow-400 glass-card rounded-lg text-sm" title="Skip - remove from current batch">⏭️</button>
                                     <div class="relative group">
                                         <button class="px-3 py-2 text-gray-400 hover:text-white glass-card rounded-lg">⚠️</button>
-                                        <div class="absolute right-0 top-full mt-2 w-64 bg-gray-900/95 backdrop-blur border border-white/10 rounded-xl overflow-hidden hidden group-hover:block z-10">
+                                        <div class="absolute right-0 top-full pt-2 w-64 hidden group-hover:block z-10">
+                                          <div class="bg-gray-900/95 backdrop-blur border border-white/10 rounded-xl overflow-hidden">
                                             <p class="px-4 py-2 text-xs font-semibold text-gray-400 border-b border-white/5">Wrong File Actions</p>
                                             <button onclick="markSubmissionMissing()" class="w-full px-4 py-3 text-left text-sm hover:bg-white/10 flex items-center gap-2">
                                                 <span>📭</span> Mark as Missing
@@ -262,13 +263,16 @@
                                                 <span>✖️</span> Excuse Submission
                                                 <span class="text-xs text-gray-500 ml-auto">no grade impact</span>
                                             </button>
+                                          </div>
                                         </div>
                                     </div>
                                     <div class="relative group">
                                         <button class="px-3 py-2 text-gray-400 hover:text-white glass-card rounded-lg">📚</button>
-                                        <div class="absolute right-0 top-full mt-2 w-72 bg-gray-900/95 backdrop-blur border border-white/10 rounded-xl p-4 text-xs hidden group-hover:block z-10">
+                                        <div class="absolute right-0 top-full pt-2 w-72 hidden group-hover:block z-10">
+                                          <div class="bg-gray-900/95 backdrop-blur border border-white/10 rounded-xl p-4 text-xs">
                                             <p class="font-semibold mb-2 text-white">Available Libraries:</p>
                                             <p class="text-gray-400">{{ available_libraries | join(', ') if available_libraries else 'requests, json, openpyxl, pandas, numpy, matplotlib, math, random, datetime, os, re' }}</p>
+                                          </div>
                                         </div>
                                     </div>
                                 </div>
