@@ -458,8 +458,10 @@ def api_assignments(course_id):
 
 
 # Track who received celebration/reminder messages
-CELEBRATED_FILE = Path("/app/data/celebrated_students.json")
-REMINDED_FILE = Path("/app/data/reminded_students.json")
+# Use /app/data inside Docker, fall back to ./data locally
+_data_dir = Path("/app/data") if Path("/app").exists() else Path(__file__).resolve().parent / "data"
+CELEBRATED_FILE = _data_dir / "celebrated_students.json"
+REMINDED_FILE = _data_dir / "reminded_students.json"
 
 def ensure_data_dir():
     """Ensure data directory exists"""
