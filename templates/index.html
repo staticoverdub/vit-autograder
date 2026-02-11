@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono&family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary: #6366f1;
@@ -77,6 +77,32 @@
         @keyframes toastIn { from { opacity:0; transform:translateY(20px) scale(0.9); } to { opacity:1; transform:translateY(0) scale(1); } }
         
         @keyframes confettiFall { to { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
+
+        /* Getting Started Guide */
+        .getting-started { margin-bottom: 2rem; }
+        .getting-started .step-number { width: 2rem; height: 2rem; border-radius: 50%; background: linear-gradient(135deg, var(--primary), #4f46e5); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.875rem; flex-shrink: 0; }
+
+        /* Kavinsky / Outrun Theme */
+        body.kavinsky { background: linear-gradient(180deg, #0a0a0a 0%, #1a0011 50%, #0a0a0a 100%); --primary: #ff0040; --accent: #ff2975; --success: #00ff9f; --warning: #ffe66d; --danger: #ff0040; }
+        body.kavinsky::after { content: ''; position: fixed; inset: 0; z-index: 9999; pointer-events: none; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px); }
+        body.kavinsky .bg-grid { background-image: linear-gradient(rgba(255,0,64,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,41,117,0.06) 1px, transparent 1px); }
+        body.kavinsky .orb-1 { background: #ff0040; }
+        body.kavinsky .orb-2 { background: #ff2975; }
+        body.kavinsky h1, body.kavinsky h2, body.kavinsky h3 { text-shadow: 0 0 10px rgba(255,0,64,0.5); }
+        body.kavinsky .sidebar-title { font-family: 'Press Start 2P', cursive !important; font-size: 0.7rem; letter-spacing: -0.5px; }
+        body.kavinsky .glass-card { background: linear-gradient(135deg, rgba(255,0,64,0.05), rgba(255,0,64,0.02)); border-color: rgba(255,0,64,0.15); }
+        body.kavinsky .glass-card:hover { background: linear-gradient(135deg, rgba(255,0,64,0.1), rgba(255,0,64,0.04)); box-shadow: 0 20px 40px rgba(255,0,64,0.15); }
+        body.kavinsky .btn-primary { background: linear-gradient(135deg, #ff0040, #cc0033); box-shadow: 0 4px 15px rgba(255,0,64,0.4); }
+        body.kavinsky .btn-primary:hover { box-shadow: 0 8px 25px rgba(255,0,64,0.5); }
+        body.kavinsky .btn-accent { background: linear-gradient(135deg, #ff2975, #e6005c); color: #fff; }
+        body.kavinsky .nav-item::before { background: #ff0040; }
+        body.kavinsky .nav-item:hover { background: rgba(255,0,64,0.1); }
+        body.kavinsky .nav-item.active { background: linear-gradient(90deg, rgba(255,0,64,0.2), transparent); }
+        body.kavinsky ::-webkit-scrollbar-thumb { background: rgba(255,0,64,0.4); }
+        body.kavinsky .spinner { border-color: rgba(255,0,64,0.2); border-top-color: #ff0040; }
+        body.kavinsky .progress-bar { background: linear-gradient(90deg, #ff0040, #ff2975, #ff0040); background-size: 200% 100%; }
+        body.kavinsky .kavinsky-flash { position: fixed; inset: 0; background: rgba(255,0,64,0.3); z-index: 10000; pointer-events: none; animation: kavFlash 0.4s ease-out forwards; }
+        @keyframes kavFlash { from { opacity: 1; } to { opacity: 0; } }
     </style>
 </head>
 <body class="text-gray-100 min-h-screen overflow-hidden">
@@ -89,9 +115,9 @@
         <aside class="w-72 glass border-r border-white/5 flex flex-col">
             <div class="p-6 border-b border-white/5">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xl shadow-lg">📝</div>
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xl shadow-lg" title="↑↑↓↓←→←→BA">📝</div>
                     <div>
-                        <h1 class="text-lg font-bold text-white">AutoGrader</h1>
+                        <h1 class="text-lg font-bold text-white sidebar-title">AutoGrader</h1>
                         <p class="text-xs text-gray-500">{{ org_tagline or 'AI-Powered Grading' }}</p>
                     </div>
                 </div>
@@ -137,7 +163,33 @@
         <!-- Main Content -->
         <main class="flex-1 overflow-auto p-8">
             <div class="max-w-7xl mx-auto">
-                
+
+                <!-- Getting Started Guide -->
+                <div id="getting-started" class="getting-started glass-card rounded-2xl p-6 fade-in">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-white">Getting Started</h3>
+                        <button onclick="dismissGuide()" class="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition">Got it</button>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="flex items-start gap-3">
+                            <div class="step-number">1</div>
+                            <div><p class="text-sm font-medium text-white">Browse Canvas</p><p class="text-xs text-gray-400">Select your course and assignment</p></div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <div class="step-number">2</div>
+                            <div><p class="text-sm font-medium text-white">Upload or Fetch</p><p class="text-xs text-gray-400">Upload a ZIP or pull submissions from Canvas</p></div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <div class="step-number">3</div>
+                            <div><p class="text-sm font-medium text-white">Review & Grade</p><p class="text-xs text-gray-400">AI grades each submission; review and adjust</p></div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <div class="step-number">4</div>
+                            <div><p class="text-sm font-medium text-white">Submit</p><p class="text-xs text-gray-400">Push grades back to Canvas</p></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Browse Canvas -->
                 <section id="section-browse" class="hidden fade-in">
                     <div class="flex gap-8">
@@ -1430,11 +1482,102 @@
             loadStudentDashboard(dashboardCourseId);
         }
         
+        // Getting Started Guide
+        function dismissGuide() {
+            localStorage.setItem('autograder-guide-dismissed', '1');
+            document.getElementById('getting-started').classList.add('hidden');
+            playSound('click');
+        }
+
+        // Kavinsky / Outrun Easter Egg
+        const konamiSequence = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+        let konamiIndex = 0;
+        document.addEventListener('keydown', (e) => {
+            if (e.key === konamiSequence[konamiIndex] || e.key.toLowerCase() === konamiSequence[konamiIndex]) {
+                konamiIndex++;
+                if (konamiIndex === konamiSequence.length) {
+                    konamiIndex = 0;
+                    toggleKavinsky();
+                }
+            } else {
+                konamiIndex = 0;
+            }
+        });
+
+        function toggleKavinsky() {
+            const active = document.body.classList.toggle('kavinsky');
+            localStorage.setItem('kavinsky-mode', active ? '1' : '0');
+            if (active) {
+                playKavinskySound('on');
+                const flash = document.createElement('div');
+                flash.className = 'kavinsky-flash';
+                document.body.appendChild(flash);
+                setTimeout(() => flash.remove(), 500);
+            } else {
+                playKavinskySound('off');
+            }
+        }
+
+        function playKavinskySound(mode) {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                if (mode === 'on') {
+                    // Bass note
+                    const bass = ctx.createOscillator();
+                    const bassGain = ctx.createGain();
+                    bass.type = 'sawtooth';
+                    bass.frequency.setValueAtTime(80, ctx.currentTime);
+                    bassGain.gain.setValueAtTime(0.3, ctx.currentTime);
+                    bassGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.2);
+                    bass.connect(bassGain);
+                    bassGain.connect(ctx.destination);
+                    bass.start();
+                    bass.stop(ctx.currentTime + 1.2);
+                    // Shimmer
+                    const shimmer = ctx.createOscillator();
+                    const shimmerGain = ctx.createGain();
+                    shimmer.type = 'sine';
+                    shimmer.frequency.setValueAtTime(1200, ctx.currentTime);
+                    shimmer.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.8);
+                    shimmerGain.gain.setValueAtTime(0.15, ctx.currentTime);
+                    shimmerGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
+                    shimmer.connect(shimmerGain);
+                    shimmerGain.connect(ctx.destination);
+                    shimmer.start();
+                    shimmer.stop(ctx.currentTime + 0.8);
+                } else {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.3);
+                    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.3);
+                }
+            } catch(e) {}
+        }
+
+        function checkKavinskyMode() {
+            if (localStorage.getItem('kavinsky-mode') === '1') {
+                document.body.classList.add('kavinsky');
+            }
+        }
+
         // Init
         let preloadedDashboardData = {};
-        
-        document.addEventListener('DOMContentLoaded', () => { 
+
+        document.addEventListener('DOMContentLoaded', () => {
             console.log('AutoGrader initialized');
+            // Check getting started guide
+            if (localStorage.getItem('autograder-guide-dismissed') === '1') {
+                document.getElementById('getting-started').classList.add('hidden');
+            }
+            // Check Kavinsky mode
+            checkKavinskyMode();
             showSection('browse');
             // Preload dashboard data in background
             preloadDashboardData();
