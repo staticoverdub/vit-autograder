@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import tempfile
+import time
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -106,6 +107,28 @@ current_session = {
     "course": None,
     "assignment": None
 }
+
+# Dashboard cache with 5-minute TTL
+_dashboard_cache = {}
+_DASHBOARD_CACHE_TTL = 300  # seconds
+
+
+def get_cached_dashboard(course_id):
+    """Return cached dashboard data if still valid, else None."""
+    entry = _dashboard_cache.get(str(course_id))
+    if entry and (time.time() - entry["ts"]) < _DASHBOARD_CACHE_TTL:
+        return entry["data"]
+    return None
+
+
+def set_cached_dashboard(course_id, data):
+    """Store dashboard data with current timestamp."""
+    _dashboard_cache[str(course_id)] = {"data": data, "ts": time.time()}
+
+
+def invalidate_dashboard_cache(course_id):
+    """Remove cached dashboard for a course (call on mutations)."""
+    _dashboard_cache.pop(str(course_id), None)
 
 
 def get_headers():
@@ -559,6 +582,78 @@ def get_student_all_grades(course_id, user_id):
         return None
 
 
+def fetch_all_submissions_bulk(course_id):
+    """Fetch submissions for ALL students in one paginated API call.
+
+    Uses Canvas's bulk endpoint: GET /courses/{id}/students/submissions
+    Returns dict mapping user_id (int) -> list of submission dicts.
+    """
+    url = f"{CANVAS_URL}/api/v1/courses/{course_id}/students/submissions"
+    params = {
+        "student_ids[]": "all",
+        "grouped": "true",
+        "per_page": 100,
+    }
+    result = {}
+    try:
+        while url:
+            response = requests.get(url, headers=get_headers(), params=params)
+            if response.status_code != 200:
+                print(f"Bulk submissions fetch failed: {response.status_code}", flush=True)
+                break
+            data = response.json()
+            for entry in data:
+                uid = entry.get("user_id")
+                if uid is not None:
+                    result.setdefault(uid, []).extend(entry.get("submissions", []))
+            # Follow Link header pagination
+            url = None
+            params = None  # params already encoded in the next URL
+            link_header = response.headers.get("Link", "")
+            for part in link_header.split(","):
+                if 'rel="next"' in part:
+                    url = part.split("<")[1].split(">")[0]
+                    break
+    except Exception as e:
+        print(f"Error in bulk submissions fetch: {e}", flush=True)
+    return result
+
+
+def build_student_grades_from_bulk(user_id, submissions, assignments_by_id):
+    """Transform bulk submission data into the same format get_student_all_grades returns.
+
+    Args:
+        user_id: The student's Canvas user ID.
+        submissions: List of raw submission dicts from the bulk endpoint.
+        assignments_by_id: dict mapping assignment_id -> assignment dict.
+
+    Returns:
+        List of grade dicts matching the get_student_all_grades format.
+    """
+    # Index submissions by assignment_id
+    subs_by_assignment = {}
+    for sub in submissions:
+        aid = sub.get("assignment_id")
+        if aid is not None:
+            subs_by_assignment[aid] = sub
+
+    grades = []
+    for aid, assignment in assignments_by_id.items():
+        if not assignment.get("published", True):
+            continue
+        sub = subs_by_assignment.get(aid, {})
+        grades.append({
+            "assignment_id": aid,
+            "assignment_name": assignment.get("name", "Unknown"),
+            "points_possible": assignment.get("points_possible", 0),
+            "score": sub.get("score"),
+            "grade": sub.get("grade"),
+            "graded": sub.get("grade") is not None,
+            "submitted": sub.get("submitted_at") is not None,
+        })
+    return grades
+
+
 def check_all_graded(grades):
     """Check if all assignments are graded"""
     if not grades:
@@ -710,6 +805,11 @@ def send_canvas_message(course_id, user_id, subject, body, cc_instructors=True):
 @app.route('/api/courses/<course_id>/student-dashboard')
 def student_dashboard(course_id):
     """Get comprehensive student progress data for dashboard"""
+    # Check cache first
+    cached = get_cached_dashboard(course_id)
+    if cached is not None:
+        return jsonify(cached)
+
     # Get all students in course
     url = f"{CANVAS_URL}/api/v1/courses/{course_id}/users"
     params = {"enrollment_type[]": "student", "per_page": 100}
@@ -732,9 +832,17 @@ def student_dashboard(course_id):
         assignments_response = requests.get(assignments_url, headers=get_headers(), params={"per_page": 100, "order_by": "due_at"})
         all_assignments = assignments_response.json() if assignments_response.status_code == 200 else []
 
-        # Build assignment order list
+        # Build assignment lookup and order list
+        assignments_by_id = {a['id']: a for a in all_assignments}
         assignment_order = [a['id'] for a in all_assignments]  # Preserve original order
         total_assignments = len(all_assignments)
+
+        # Bulk-fetch all submissions in ~3-5 API calls instead of N*M
+        bulk_submissions = fetch_all_submissions_bulk(course_id)
+
+        # Pre-read celebrated/reminded files once (instead of per-student)
+        celebrated_data = get_celebrated_students()
+        reminded_data = get_reminded_students()
 
         # Track stats - include scores for average calculation
         student_data = []
@@ -753,10 +861,9 @@ def student_dashboard(course_id):
             user_id = student.get('id')
             name = student.get('name', 'Unknown')
 
-            # Get grades
-            grades = get_student_all_grades(course_id, user_id)
-            if not grades:
-                grades = []
+            # Get grades from bulk data (no per-student API calls)
+            user_submissions = bulk_submissions.get(user_id, [])
+            grades = build_student_grades_from_bulk(user_id, user_submissions, assignments_by_id)
 
             # Calculate stats
             graded_assignments = [g for g in grades if g.get('graded') and g.get('score') is not None]
@@ -785,10 +892,18 @@ def student_dashboard(course_id):
                         pct = (g['score'] / g['points_possible'] * 100) if g['points_possible'] > 0 else 0
                         assignment_completion[g['assignment_id']]['scores'].append(pct)
 
-            # Determine status
+            # Determine status using pre-loaded data (no file reads per student)
             is_complete = completed_count >= total_assignments and total_assignments > 0
-            celebrated = has_been_celebrated(course_id, user_id)
-            reminded = has_been_reminded_recently(course_id, user_id)
+            cel_key = f"{course_id}_{user_id}"
+            celebrated = cel_key in celebrated_data
+            rem_key = f"{course_id}_{user_id}"
+            reminded = False
+            if rem_key in reminded_data:
+                try:
+                    reminded_date = datetime.fromisoformat(reminded_data[rem_key])
+                    reminded = (datetime.now() - reminded_date).days < 7
+                except (ValueError, KeyError, TypeError):
+                    pass
 
             # Has at least one submission
             has_submissions = completed_count > 0
@@ -928,7 +1043,7 @@ def student_dashboard(course_id):
         complete_count = len([s for s in active_students if s['is_complete']])
         celebrated_count = len([s for s in active_students if s['celebrated']])
 
-        return jsonify({
+        result = {
             "course_name": course_name,
             "total_students": len(students),
             "active_students": len(active_students),
@@ -943,7 +1058,10 @@ def student_dashboard(course_id):
             "needs_reminder": needs_reminder,
             "ready_to_celebrate": ready_to_celebrate,
             "students": active_students
-        })
+        }
+
+        set_cached_dashboard(course_id, result)
+        return jsonify(result)
 
     except Exception as e:
         import traceback
@@ -1052,6 +1170,7 @@ def send_celebration(course_id, user_id):
 
     if success:
         mark_student_celebrated(course_id, user_id)
+        invalidate_dashboard_cache(course_id)
         return jsonify({
             "success": True,
             "student_name": student_name,
@@ -1143,6 +1262,7 @@ def send_reminder(course_id, user_id):
 
         if success:
             mark_student_reminded(course_id, user_id)
+            invalidate_dashboard_cache(course_id)
             return jsonify({
                 "success": True,
                 "student_name": student_name,

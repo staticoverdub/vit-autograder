@@ -1134,7 +1134,7 @@
                 return;
             }
             
-            showLoading('Loading student data... This may take 5-10 minutes due to Canvas API limits.');
+            showLoading('Loading student data...');
             try {
                 const res = await fetch(`/api/courses/${courseId}/student-dashboard`);
                 dashboardData = await res.json();
